@@ -221,3 +221,19 @@ legend("topleft",
        legend = c(paste("R2 =", round(summary(model)$r.squared, 3))), bty = "n"
        )
 ```
+
+# K-theory / Profile method
+
+This is some code (wont run, since variable names changed) to calculate the eddy diffusivity for sensible heat $$K_H$$, which can be used later for the calculation of fluxes from simple gradients, without the need to use MOST Theory. Note, that the 118 in the calculation results from 148m-30m.
+
+```{r}
+radiation_filtered = radiation_filtered%>%
+  mutate(
+    K_H = - (sensible_heat_Wm2_Eddy_Cov_uncorrected)/(delta_T_C/118)
+  )
+
+# when now using K_H for calculating the sensible heat flux using K theory, this would be exactly the same result
+
+# compare EC data from 30m height with ecosystem station measurements
+
+```
