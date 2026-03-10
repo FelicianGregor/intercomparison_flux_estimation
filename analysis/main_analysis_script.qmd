@@ -146,7 +146,7 @@ BREB_data = BREB_data%>%
 However, following @foken2024 on page 165, data must be filtered for quality reasons. Furthermore, The criteria proposed by @ohmura1982 is used for further filtering. Since the specific humidity $$q$$is needed for the criterion, $$q$$ is calculated using the formula from @foken2024, supplement 2.2 on page 54, with ground pressure from the Ecosystem station. Note, that I do not take into account the temperature dependency of the latent heat of vaporization lambda, but rather treat it as constant, equally the specific heat capacity at constant pressure $$c_p$$. Check the direction of -R_NET!
 
 ```{r}
-# do quality filtering, based on Foke, Micrometeorology, page 65
+# do quality filtering, based on Foken, Micrometeorology, page 65
 BREB_data = BREB_data %>%
   mutate(
     H_Wm2_BREB  = if_else(Bowen_ratio > -1.25 
@@ -171,7 +171,7 @@ BREB_data= BREB_data%>%
 lambda = 2.25e6 #in Joule per kg (although in reality dependend on T!)
 c_p = 1005 #J/kg*K
 
-BREB_data <- BREB_data %>%
+BREB_data = BREB_data %>%
   mutate(
     valid =
       # one direction: both larger 0: >
