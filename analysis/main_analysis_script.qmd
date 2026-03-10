@@ -3,25 +3,221 @@ title: "Intercomparison of flux-estimation approaches"
 author: "Felician Heim"
 format: html
 editor: visual
+bibliography: references.bib
 ---
 
-## Quarto
+# Preparations and load data
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-1 + 1
-```
-
-You can add options to executable code like this
+First, packages are loaded.
 
 ```{r}
 #| echo: false
-2 * 2
+library(tidyverse)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Second, the different data sets are loaded, which have been preprocessed (setting date and time, converting units and renaming of objects) in `preprocessing/...`:
+
+-   EC data output from EddyPro (3 different heights, 30m, 70m, 148m) for the sensible heat flux and $K_H$, until now only year 2020 and 30m measurement height available
+
+-   Profile measurements (slow) from 14 levels for temperature and humidity (and potentially other gases - Picarro data)
+
+-   L2 ICOS Ecosystem station data (EC & radiation) for evaluation of fluxes (and provides ground pressure for obtaining water vapor pressure $e$)
+
+```{r}
+#| warning: false
+
+#load EC data output first, here only 30m until now!!!
+load("../data/processed/sonic_profile_data.RData")
+
+# load the 14 level profile data for Ta and Humidity
+load("../data/processed/slow_profile_data.RData")
+
+# Ecosystem data 30m
+load("../data/processed/Eco_data_30m.RData")
+
+```
+
+# Bowen ratio energy balance approach
+
+The Bowen Ratio energy balance approach does not make any assumptions about turbulence, however, makes use of data on net radiation components as well as gradient measurements from at least two heights. The calculation is based on the Bowen Ration $Bo$, being defined as
+
+$$
+Bo = \gamma\frac{\Delta T}{\Delta e} 
+$$
+
+with $\Delta T$ and $\Delta e$ denoting the air temperature and water vapor difference between two heights and The psychrometric constant $$\gamma = 0.667 hPa/K$$ for air pressure $$p = 1013.25 hPa$$ and air temperature of 20ºC (other values are given in tables, see @micromet2026, page 120/121 ).
+
+Then, the sensible and latent heat flux can be obtained from the following equation @foken2024, page 164:
+
+$$
+Q_H = (-Q_{Net}-Q_G)*\frac{Bo}{1+Bo}
+$$
+
+$$
+Q_E = \frac{-Q_{Net}-Q_G}{1+Bo}
+$$
+
+here, $Q_{Net}$, $Q_H$, $$Q_E$$, and $Q_G$ denote the net radiation, sensible heat flux, latent heat flux and ground heat flux all in $$W/m^2$$, respectively. This means, the following data has to be available to calculate the the sensible and latent heat flux (in brackets where the data is coming from):
+
+-   net radiation (Wm2) - from the `Eco_data_30m` dataset, so the ICOS Ecosystem station
+
+-   ground heat flux (Wm2) - from the `Eco_data_30m` dataset, so the ICOS Ecosystem station
+
+-   The $\Delta T$ and $$\Delta e$$ from two measurement heights - from the `slow_profile_data` data set, using first 148m - 30m
+
+    -   in order to obtain $e$ in $hPa$, one needs to convert the H2O mixing ratio in $$mmol/mol$$ first in $$kg/kg$$ by using $$m[kg/kg] = m[mmol/mol]/(1000*0.622)$$ (source/citation missing)
+
+    -   and then, using the following equation @foken2024, page 41, Supplement 2.2, one can obtain the water vapor pressure $$e [hPa]= (m[kg/kg]*p[hPa])/(0.622)$$
+
+    -   The gradient can then be determined as $$\Delta e = e_{148m} - e_{30m}$$
+
+    -   This means, I need the ground pressure data from the Ecosystem Station in `Eco_data_30m` to calculate $$e$$
+
+First, all the needed data column are merged in one data frame:
+
+```{r}
+# from the sonic data, select only H value
+sonic_data_30m = sonic_profile_data%>%
+  select(datetime,H_Wm2_sonic_30m)
+
+slow_profile_data = slow_profile_data%>% select(datetime, 
+                            Ta_dgC_148m, 
+                            Ta_dgC_30m,
+                            H2O_mmol_mol_148m, 
+                            H2O_mmol_mol_30m)
+
+Eco_data_30m = Eco_data_30m%>% select(datetime, 
+                       H_Wm2, 
+                       G_Wm2, 
+                       LE_Wm2, 
+                       R_Net_Wm2, 
+                       P_ground_hPa)
+
+  
+# now merge, based on datetime
+# use Eco_data as df to join in, since it contains complete 30min interval of 2020
+BREB_data = Eco_data_30m%>%
+  left_join(y = slow_profile_data, by = "datetime")%>%
+  left_join(y = sonic_data_30m, by = "datetime")
+```
+
+Now, I can use the data to calculate the gradient $$\Delta T$$ and $$\Delta e$$, starting with the latter by make the unit conversion for mixing ratio in $$mmol/mol$$ to $$kg/kg$$, then $$e[hPa]$$.
+
+```{r}
+# calculate delta e
+BREB_data = BREB_data%>%
+  mutate(
+    
+    # convert from mmol/mol to kg/kg
+    H2O_kg_kg_30m = H2O_mmol_mol_30m / 1000 * 0.622,
+    H2O_kg_kg_148m = H2O_mmol_mol_148m / 1000 * 0.622,
+    
+    # calculate e in hPa
+    e_148m_hPa = (P_ground_hPa * H2O_kg_kg_148m) / 0.622, 
+    e_30m_hPa  = (P_ground_hPa * H2O_kg_kg_30m) / 0.622, 
+    delta_e_hPa = e_148m_hPa - e_30m_hPa, 
+    
+    # calculate delta T
+    delta_Ta_dgC = Ta_dgC_148m - Ta_dgC_30m
+  )%>%
+  # remove kg/kg columns
+  select(-c(H2O_kg_kg_30m, 
+            H2O_kg_kg_148m))
+
+```
+
+After this step, the formula for the Bowen ratio for the sensible and the latent heat can be used:
+
+```{r}
+# do the calculation for the latent and sensible heat flux
+BREB_data = BREB_data%>%
+  mutate(
+    Bowen_ratio = 0.667 * (delta_Ta_dgC/delta_e_hPa),
+    H_Wm2_BREB = (R_Net_Wm2-G_Wm2)*((Bowen_ratio)/(1+Bowen_ratio)),
+    LE_Wm2_BREB = (R_Net_Wm2 - G_Wm2)/(1+Bowen_ratio)
+  ) 
+```
+
+However, following @foken2024 on page 165, data must be filtered for quality reasons:
+
+```{r}
+# do quality filtering, based on Foke, Micrometeorology, page 65
+BREB_data = BREB_data %>%
+  mutate(
+    H_Wm2_BREB  = if_else(Bowen_ratio > -1.25 
+                                      & Bowen_ratio < -0.75, 
+                                      true = NA, 
+                                      false = H_Wm2_BREB),
+    LE_Wm2_BREB = if_else(Bowen_ratio > -1.25 
+                                     & Bowen_ratio < -0.75, 
+                                   true = NA, 
+                                   false = LE_Wm2_BREB)
+  )
+```
+
+Now, the sensible and latent heat calculated using the BREB approach can be compared to the data from the Ecosystem station (EC system, processed using the ICOS protocol, 30m) and the sensible heat flux from the sonic from 30m processed by myself (EddyPro express mode for now).
+
+Note, that this is only the data as it comes from Eddy pro (for the eddy data) - I did not do any filtering based on quality flags etc!
+
+Using the Ecosystem station data as benchmark, predicted vs observed scatter plot can be created, along with a linear model and the $$R^2$$ value. I compare first the BREB against the EC data from the Ecosystem station:
+
+```{r}
+# line
+model = lm(H_Wm2_BREB~H_Wm2, data = BREB_data)
+
+# plot 
+plot(H_Wm2_BREB~H_Wm2, data = BREB_data,
+     ylab = "BREB sensible heat [Wm2]", 
+     xlab = "EC sensible heat [Wm2] ICOS Ecosystem station", 
+     las = 1, pch = 1, cex = 0.5, xlim = c(-200, 830), ylim = c(-200, 830))
+
+# add grid, abline and legend with R2
+grid()
+abline(0, 1, col = "black", lwd = 2, lty = 2)  
+abline(model, col = "darkred", lwd = 2)
+legend("topleft", 
+       legend = c(paste("R2 =", round(summary(model)$r.squared, 3))), bty = "n"
+       )
+```
+
+Now, do the same for comparison of the ICOs Ecosystem station fluxes from 30m for the sensible heat flux, and my own calculated sensible heat flux from the sonic on 30m.
+
+```{r}
+# line
+model = lm(H_Wm2_sonic_30m~H_Wm2, data = BREB_data)
+
+# plot 
+plot(H_Wm2_sonic_30m~H_Wm2, data = BREB_data, 
+     ylab = "sonic sensible heat [Wm2]", 
+     xlab = "EC sensible heat [Wm2] ICOS Ecosystem station", 
+     las = 1, pch = 1, cex = 0.5, xlim = c(-200, 830), ylim = c(-200, 830))
+
+# add grid, abline and legend with R2
+grid()
+abline(0, 1, col = "black", lwd = 2, lty = 2)  
+abline(model, col = "green", lwd = 2)
+legend("topleft", 
+       legend = c(paste("R2 =", round(summary(model)$r.squared, 3))), bty = "n"
+       )
+```
+
+Comparison of the latent heat flux from the BREb approach, and the latent heat flux from the ICOS Ecosystem station data:
+
+```{r}
+# linear model
+model = lm(LE_Wm2_BREB~LE_Wm2, data = BREB_data)
+
+# plot 
+plot(LE_Wm2_BREB~LE_Wm2, data = BREB_data, 
+     ylab = "BREB latent heat [Wm2]", 
+     xlab = "EC latent heat [Wm2] ICOS Ecosystem station", 
+     las = 1, pch = 1, cex = 0.5, xlim = c(-200, 830), ylim = c(-200, 830))
+
+# add grid, abline and legend with R2
+grid()
+abline(0, 1, col = "black", lwd = 2, lty = 2)  
+abline(model, col = "blue", lwd = 2)
+legend("topleft", 
+       legend = c(paste("R2 =", round(summary(model)$r.squared, 3))), bty = "n"
+       )
+```
