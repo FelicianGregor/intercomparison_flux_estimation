@@ -73,6 +73,8 @@ here, $Q_{Net}$, $Q_H$, $$Q_E$$, and $Q_G$ denote the net radiation, sensible he
 
     -   This means, I need the ground pressure data from the Ecosystem Station in `Eco_data_30m` to calculate $$e$$
 
+-   the gradient of the specific humidity $$\Delta q$$ is needed for the filter criterion proposed by @ohmura1982 for the BREB fluxes
+
 First, all the needed data column are merged in one data frame:
 
 ```{r}
@@ -92,6 +94,9 @@ Eco_data_30m = Eco_data_30m%>% select(datetime,
                        LE_Wm2, 
                        R_Net_Wm2, 
                        P_ground_hPa)
+
+
+
 
   
 # now merge, based on datetime
@@ -138,7 +143,7 @@ BREB_data = BREB_data%>%
   ) 
 ```
 
-However, following @foken2024 on page 165, data must be filtered for quality reasons:
+However, following @foken2024 on page 165, data must be filtered for quality reasons. Furthermore, The criteria proposed by @ohmura1982 is used for further filtering. Since the specific humidity $$q$$is needed for the criterion, $$q$$ is calculated using the formula from @foken2024, supplement 2.2 on page 54, with ground pressure from the Ecosystem station. Note, that I do not take into account the temperature dependency of the latent heat of vaporization lambda, but rather treat it as constant, equally the specific heat capacity at constant pressure $$c_p$$. Check the direction of -R_NET!
 
 ```{r}
 # do quality filtering, based on Foke, Micrometeorology, page 65
@@ -153,6 +158,34 @@ BREB_data = BREB_data %>%
                                    true = NA, 
                                    false = LE_Wm2_BREB)
   )
+
+# calculate delta q in kg/kg
+BREB_data= BREB_data%>%
+  mutate(
+    q_148m_kg_kg = 0.622*((e_148m_hPa)/(P_ground_hPa-0.378*e_148m_hPa)), 
+    q_30m_kg_kg = 0.622*((e_30m_hPa)/(P_ground_hPa-0.378*e_30m_hPa)), 
+    delta_q_kg_kg = q_148m_kg_kg - q_30m_kg_kg
+  )
+
+# filtering criteria based on Ohmura 1982 
+lambda = 2.25e6 #in Joule per kg (although in reality dependend on T!)
+c_p = 1005 #J/kg*K
+
+BREB_data <- BREB_data %>%
+  mutate(
+    valid =
+      # one direction: both larger 0: >
+      ((-R_Net_Wm2 - G_Wm2) > 0 
+       & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) > 0) | # or
+      # now other direction <
+      ((-R_Net_Wm2 - G_Wm2) < 0 
+       & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) < 0),
+
+    # apply
+    H_Wm2_BREB  = if_else(valid, true  = H_Wm2_BREB, false = NA),
+    LE_Wm2_BREB = if_else(valid, true = LE_Wm2_BREB, false = NA)
+  )
+
 ```
 
 Now, the sensible and latent heat calculated using the BREB approach can be compared to the data from the Ecosystem station (EC system, processed using the ICOS protocol, 30m) and the sensible heat flux from the sonic from 30m processed by myself (EddyPro express mode for now).
