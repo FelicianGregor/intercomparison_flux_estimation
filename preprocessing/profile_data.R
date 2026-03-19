@@ -16,7 +16,37 @@ H2O_data[, 4:ncol(H2O_data)] = lapply(H2O_data[, 4:ncol(H2O_data)], as.numeric)
 # set dates
 H2O_data = H2O_data %>%
   mutate(datetime = dmy(date) + seconds(as.numeric(time) * 86400))%>%
-  mutate(datetime = force_tz(datetime, tzone = "UTC"))
+  mutate(datetime = force_tz(datetime, tzone = "UTC"))%>%
+  # rename h20
+  rename(H2O_1m = H2O_1_14_1, 
+         H2O_4m = H2O_1_13_1, 
+         H2O_9m = H2O_1_12_1, 
+         H2O_14m = H2O_1_11_1, 
+         H2O_19m = H2O_1_10_1, 
+         H2O_24m = H2O_1_9_1, 
+         H2O_30m = H2O_1_8_1, 
+         H2O_40m = H2O_1_7_1, 
+         H2O_55m = H2O_1_6_1, 
+         H2O_70m = H2O_1_5_1, 
+         H2O_85m = H2O_1_4_1, 
+         H2O_100m = H2O_1_3_1, 
+         H2O_125m = H2O_1_2_1, 
+         H2O_1148m = H2O_1_1_1)%>%
+  # the same for co2
+  rename(CO2_1m = CO2_1_14_1, 
+         CO2_4m = CO2_1_13_1, 
+         CO2_9m = CO2_1_12_1, 
+         CO2_14m = CO2_1_11_1, 
+         CO2_19m = CO2_1_10_1, 
+         CO2_24m = CO2_1_9_1, 
+         CO2_30m = CO2_1_8_1, 
+         CO2_40m = CO2_1_7_1, 
+         CO2_55m = CO2_1_6_1, 
+         CO2_70m = CO2_1_5_1, 
+         CO2_85m = CO2_1_4_1, 
+         CO2_100m = CO2_1_3_1, 
+         CO2_125m = CO2_1_2_1, 
+         CO2_1148m = CO2_1_1_1)
 
 # interested in 30m - 150 m contrast
 # 30m = H2O_1_8_1
