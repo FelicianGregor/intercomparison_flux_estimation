@@ -57,33 +57,37 @@ $$
 Q_E = \frac{-Q_{Net}-Q_G}{1+Bo}
 $$
 
-here, $Q_{Net}$, $Q_H$, $$Q_E$$, and $Q_G$ denote the net radiation, sensible heat flux, latent heat flux and ground heat flux all in $$W/m^2$$, respectively. This means, the following data has to be available to calculate the the sensible and latent heat flux (in brackets where the data is coming from):
+here, $Q_{Net}$, $Q_H$, $Q_E$, and $Q_G$ denote the net radiation, sensible heat flux, latent heat flux and ground heat flux all in $W/m^2$, respectively. This means, the following data has to be available to calculate the the sensible and latent heat flux (in brackets where the data is coming from):
 
 -   net radiation (Wm2) - from the `Eco_data_30m` dataset, so the ICOS Ecosystem station
 
 -   ground heat flux (Wm2) - from the `Eco_data_30m` dataset, so the ICOS Ecosystem station
 
--   The $\Delta T$ and $$\Delta e$$ from two measurement heights - from the `slow_profile_data` data set, using first 148m - 30m
+-   The $\Delta T$ and \$\\Delta e\$ from two measurement heights - from the `slow_profile_data` data set, using first 148m - 30m
 
-    -   in order to obtain $e$ in $hPa$, one needs to convert the H2O mixing ratio in $$mmol/mol$$ first in $$kg/kg$$ by using $$m[kg/kg] = m[mmol/mol]/(1000*0.622)$$ (source/citation missing)
+    -   in order to obtain $e$ in $hPa$, one needs to convert the H2O mixing ratio in $mmol/mol$ first in $kg/kg$ by using $m[kg/kg] = m[mmol/mol]/(1000*0.622)$ (source/citation missing)
 
     -   and then, using the following equation @foken2024, page 41, Supplement 2.2, one can obtain the water vapor pressure $$e [hPa]= (m[kg/kg]*p[hPa])/(0.622)$$
 
-    -   The gradient can then be determined as $$\Delta e = e_{148m} - e_{30m}$$
+    -   The gradient can then be determined as $\Delta e = e_{148m} - e_{30m}$
 
-    -   This means, I need the ground pressure data from the Ecosystem Station in `Eco_data_30m` to calculate $$e$$
+    -   This means, I need the ground pressure data from the Ecosystem Station in `Eco_data_30m` to calculate $e$
 
--   the gradient of the specific humidity $$\Delta q$$ is needed for the filter criterion proposed by @ohmura1982 for the BREB fluxes
+-   the gradient of the specific humidity $\Delta q$ is needed for the filter criterion proposed by @ohmura1982 for the BREB fluxes
 
 First, all the needed data column are merged in one data frame:
 
 ```{r}
 # from the sonic data, select only H value
-sonic_data_30m = sonic_profile_data%>%
-  select(datetime,H_Wm2_sonic_30m)
+sonic_profile_data = sonic_profile_data%>%
+  filter(height == "30m")%>%
+  rename(H_Wm2_sonic_30m = H_ensemble_mean)%>%
+# keep only distinct rows (datetim is ther 4 times)
+  distinct(datetime, .keep_all = TRUE)
+
 
 slow_profile_data = slow_profile_data%>% select(datetime, 
-                            Ta_dgC_148m, 
+                           Ta_dgC_148m, 
                             Ta_dgC_30m,
                             H2O_mmol_mol_148m, 
                             H2O_mmol_mol_30m)
@@ -95,18 +99,14 @@ Eco_data_30m = Eco_data_30m%>% select(datetime,
                        R_Net_Wm2, 
                        P_ground_hPa)
 
-
-
-
-  
 # now merge, based on datetime
 # use Eco_data as df to join in, since it contains complete 30min interval of 2020
 BREB_data = Eco_data_30m%>%
   left_join(y = slow_profile_data, by = "datetime")%>%
-  left_join(y = sonic_data_30m, by = "datetime")
+  left_join(y = sonic_profile_data, by = "datetime")
 ```
 
-Now, I can use the data to calculate the gradient $$\Delta T$$ and $$\Delta e$$, starting with the latter by make the unit conversion for mixing ratio in $$mmol/mol$$ to $$kg/kg$$, then $$e[hPa]$$.
+Now, I can use the data to calculate the gradient $\Delta T$ and $\Delta e$, starting with the latter by make the unit conversion for mixing ratio in $mmol/mol$ to $kg/kg$, then $e[hPa]$.
 
 ```{r}
 # calculate delta e
@@ -143,7 +143,7 @@ BREB_data = BREB_data%>%
   ) 
 ```
 
-However, following @foken2024 on page 165, data must be filtered for quality reasons. Furthermore, The criteria proposed by @ohmura1982 is used for further filtering. Since the specific humidity $$q$$is needed for the criterion, $$q$$ is calculated using the formula from @foken2024, supplement 2.2 on page 54, with ground pressure from the Ecosystem station. Note, that I do not take into account the temperature dependency of the latent heat of vaporization lambda, but rather treat it as constant, equally the specific heat capacity at constant pressure $$c_p$$. Check the direction of -R_NET!
+However, following @foken2024 on page 165, data must be filtered for quality reasons. Furthermore, The criteria proposed by @ohmura1982 is used for further filtering. Since the specific humidity $q$is needed for the criterion, $q$ is calculated using the formula from @foken2024, supplement 2.2 on page 54, with ground pressure from the Ecosystem station. Note, that I do not take into account the temperature dependency of the latent heat of vaporization lambda, but rather treat it as constant, equally the specific heat capacity at constant pressure $c_p$. Check the direction of -R_NET!
 
 ```{r}
 # do quality filtering, based on Foken, Micrometeorology, page 65
@@ -192,7 +192,7 @@ Now, the sensible and latent heat calculated using the BREB approach can be comp
 
 Note, that this is only the data as it comes from Eddy pro (for the eddy data) - I did not do any filtering based on quality flags etc!
 
-Using the Ecosystem station data as benchmark, predicted vs observed scatter plot can be created, along with a linear model and the $$R^2$$ value. I compare first the BREB against the EC data from the Ecosystem station:
+Using the Ecosystem station data as benchmark, predicted vs observed scatter plot can be created, along with a linear model and the $R^2$ value. I compare first the BREB against the EC data from the Ecosystem station:
 
 ```{r}
 # line
@@ -257,7 +257,7 @@ legend("topleft",
 
 # K-theory / Profile method
 
-This is some code (wont run, since variable names changed) to calculate the eddy diffusivity for sensible heat $$K_H$$, which can be used later for the calculation of fluxes from simple gradients, without the need to use MOST Theory. Note, that the 118 in the calculation results from 148m-30m.
+This is some code (wont run, since variable names changed) to calculate the eddy diffusivity for sensible heat $K_H$, which can be used later for the calculation of fluxes from simple gradients, without the need to use MOST Theory. Note, that the 118 in the calculation results from 148m-30m.
 
 ```{r}
 radiation_filtered = radiation_filtered%>%
@@ -268,5 +268,315 @@ radiation_filtered = radiation_filtered%>%
 # when now using K_H for calculating the sensible heat flux using K theory, this would be exactly the same result
 
 # compare EC data from 30m height with ecosystem station measurements
+
+```
+
+# Footprint visualization
+
+EddyPro gives as output the wind direction for the 30min (or other) averaging period, as well as the contribution of the different distances from the tower.
+
+sonic_profile_data
+
+```{r}
+library(openair)
+
+# need wind direction 
+sonic_profile_data["wind_dir_[deg_from_north]"]
+
+# and the contribution ### ATTENTION - might break because % is a dot
+sonic_profile_data["x_10%_[m]"]
+sonic_profile_data["x_30%_[m]"]
+sonic_profile_data["x_50%_[m]"]
+sonic_profile_data["x_70%_[m]"]
+sonic_profile_data["x_90%_[m]"]
+
+# and the wind speed
+sonic_profile_data["wind_speed_[m+1s-1]"]
+
+
+```
+
+First, I can create a wind rose.
+
+```{r}
+
+wind_data = data.frame('wd' = as.numeric(sonic_profile_data[["wind_dir_[deg_from_north]"]])
+, 
+'ws' = as.numeric(sonic_profile_data[["wind_speed_[m+1s-1]"]]), 
+date = date(sonic_profile_data[["datetime"]]))
+
+# do for full data series or per month
+polarFreq(wind_data)
+polarFreq(wind_data, type = "month")
+
+
+```
+
+However, this is not a footprint of the measurements. This can be plotted from the multiplied wind direction and distance.
+
+```{r}
+
+wind_dir = data.frame(
+  # need wind direction 
+  dir = as.numeric(sonic_profile_data[["wind_dir_[deg_from_north]"]]), 
+
+  # and the contribution for the respective percentages in distance meter
+  perc_10 = as.numeric(sonic_profile_data[["x_10%_[m]"]]), 
+  perc_30 = as.numeric(sonic_profile_data[["x_30%_[m]"]]), 
+  perc_50 = as.numeric(sonic_profile_data[["x_50%_[m]"]]), 
+  perc_70 = as.numeric(sonic_profile_data[["x_70%_[m]"]]), 
+  perc_90 = as.numeric(sonic_profile_data[["x_90%_[m]"]]), 
+  
+  # date
+  datetime = sonic_profile_data$datetime
+)
+
+wind_dir[wind_dir == -9999.0000] <- NA
+
+# calculate footprint, convert from polar to cartesian coordinates
+footprint <- wind_dir %>%
+  mutate(
+    wd_rad = dir * pi / 180,
+    x = perc_90 * sin(wd_rad),
+    y = perc_90 * cos(wd_rad)
+  )
+
+# -9999 --> NAs
+footprint[footprint == -9999.0000] <- NA
+
+
+# create a mean wind direction (circular mean)
+mean_wind_dir <- function(wd) {
+  wd_rad <- wd * pi / 180
+  
+  x <- mean(cos(wd_rad), na.rm = TRUE)
+  y <- mean(sin(wd_rad), na.rm = TRUE)
+  
+  mean_rad <- atan2(y, x)
+  mean_deg <- mean_rad * 180 / pi
+  
+  (mean_deg + 360) %% 360
+}
+
+# use function
+wind_dir%>%
+  group_by(week(datetime))%>%
+  summarise(wind_circ_mean = mean_wind_dir(dir))%>%
+  ungroup()
+
+# plot
+ggplot(footprint, aes(x = x, y = y)) +
+  geom_point(alpha = 0.3) +
+  coord_equal()+
+  labs(color = "Percentile")
+
+
+# 
+library(sf)
+# make coordinates from local coordinate system to global
+tower_lonlat <- st_sfc(
+  st_point(c(13.4189, 56.0976)),  # replace with your coordinates!
+  crs = 4326
+)
+
+tower_utm <- st_transform(tower_lonlat, 32633) # UTM 33N
+
+tower_coords <- st_coordinates(tower_utm)
+
+tower_x <- tower_coords[1]
+tower_y <- tower_coords[2]
+
+# add the footprint in m
+footprint_long <- footprint %>%
+  mutate(
+    x_map = x + tower_x,
+    y_map = y + tower_y
+  )
+
+# delete NA
+footprint_long = na.omit(footprint_long)
+
+# convert to UTM 
+footprint_sf <- st_as_sf(
+  footprint_long,
+  coords = c("x_map", "y_map"),
+  crs = 32633
+)
+
+# make sf tower object
+tower_sf <- st_sfc(
+  st_point(c(tower_x, tower_y)),
+  crs = 32633
+)
+
+ggplot() +
+  geom_sf(data = footprint_sf, aes(color = "red", alpha = 0.5)) +
+  geom_sf(data = tower_sf, color = "black", size = 3)
+```
+
+Make a background map:
+
+```{r}
+
+library(leaflet)
+
+# transform to Wgs84
+footprint_wgs84 <- st_transform(footprint_sf, 4326)
+tower_wgs84     <- st_transform(tower_sf, 4326)
+
+
+leaflet() %>%
+  addProviderTiles("Esri.WorldImagery") %>%
+  addCircleMarkers(data = st_coordinates(footprint_wgs84), fillOpacity = 0.01, radius  = 0.1)%>%
+  addCircleMarkers(
+    data = tower_wgs84,
+    color = "red",
+    radius = 6,
+    fillOpacity = 1
+  )
+```
+
+# Comparison 30/70/148m latent heat flux
+
+First, one can plot the ensembles for a specific time series for 30m and 70m. 148m height sis still to be added.
+
+```{r}
+#load data again
+load("../data/processed/sonic_profile_data.RData")
+
+# plot the different ensemble members and the mean
+# select specific time frame
+
+sonic_profile_data %>%
+  filter(between(date(datetime),
+                 ymd("2021-06-21"),
+                 ymd("2021-06-26"))) %>%
+  ggplot(aes(
+    x = datetime,
+    y = `H_[W+1m-2]`,
+    color = height,
+    group = interaction(height, folder)
+  )) +
+  geom_line() +
+  theme_bw()
+
+# compare the different height of sonic data
+sonic_profile_data %>%
+  group_by(datetime, height) %>%
+  # take the mean of all the ensembles (grouped by height)
+  summarise(`H_[W+1m-2]` = mean(`H_[W+1m-2]`, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(
+    names_from = height,
+    values_from = `H_[W+1m-2]`
+  ) %>%
+  ggplot(aes(x = `30m`, y = `70m`)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "black", size = 1.5) +
+  geom_smooth(method = "lm", color = "red", size = 1) +
+  ylab("H 70m [Wm2]") +
+  xlab("H 30m [Wm2]") +
+  theme_bw()
+
+
+# make comparison of the detrending procedure: block and linear
+sonic_profile_data%>%
+  filter(between(date(datetime),
+                 ymd("2021-01-21"),
+                 ymd("2021-05-26")))%>%
+  filter(height == "30m")%>%
+  select(datetime, detrending, rotation, `H_[W+1m-2]`) %>%
+  pivot_wider(
+    names_from = detrending,
+    values_from = `H_[W+1m-2]`
+  )%>%
+  ggplot()+
+  geom_point(aes(x = block, y = linear))+
+  ylab("H linear [Wm2]")+
+  xlab("H block [Wm2]")+
+  geom_abline(intercept = 0, slope = 1, color = "black", size = 1.5)+
+  geom_smooth(aes(x = block, y = linear), method = "lm", color = "red", size = 1)+
+  facet_grid(~rotation)+
+  theme_bw()
+
+```
+
+## look at u\*
+
+Is there a relationship between turbulence strength and the flux strength (this should not be the case) for the eddy covariance fluxes?
+
+Do this first for the whole data
+
+```{r}
+sonic_profile_data %>%
+  distinct(datetime, .keep_all = TRUE)%>%
+  filter(height == "30m") %>%
+  ggplot(aes(x = `u*_[m+1s-1]`, y = H_ensemble_mean)) +
+  geom_point(size = 0.5, alpha = 0.4) +
+  geom_smooth(method = "loess", color = "red", size = 1) +
+  ylab("H [Wm2]") +
+  xlab("u* [m/s]") +
+  
+  theme_bw()
+```
+
+## optimizing the BREB approach
+
+The BREB approach uses the gradient between different measurement heights (along with the eddy diffusivity $K$) to estimate the surface-atmosphere fluxes. However, having 14 measurement heights, the gradient is essentially a linear interpolation between two heights, while other values are neglected. To maximise the performance of the K-approach and also profile method, one can change the heights used to calculate the gradient. This can help to undersand the best (in terms of instrument setup) configuration of the method. Also, remaining differences between the BREB approach / profile method can be attributed solely to the method used, and not to possibly sub-optimal instrumental setup.
+
+To do this, we use all (physically reasonable) combinations of measurement heights to calculate the gradient. This can be understood from a Machine Learning (ML) perspective as a type of hyperparameter tuning. The different levels used as a gradient are then compared based on the residuals (bias and spread).
+
+The available measurement heights are the following:
+
+```{r}
+# load again all data
+load("../data/processed/sonic_profile_data.RData")
+load("../data/processed/slow_profile_data.RData")
+load("../data/processed/Eco_data_30m.RData")
+
+# H2O_profile data (mmol/mol) lower
+# H2O profile data upper (mmol/mol)
+
+# P ground (ecosystem data)
+# R_net from ecosystem data
+# ground heat flux from ecosystem data
+
+BREB_sens_heat = function(H2O_mmol_mol_up, 
+                          H2O_mmol_mol_down, 
+                          Ta_dgC_up, 
+                          Ta_dgC_down, 
+                          P_ground_hPa, 
+                          R_net_Wm2, 
+                          G_Wm2, 
+                          latent_heat = FALSE
+                          ){
+  
+  # convert from mmol/mol to kg/kg
+  H2O_kg_kg_down = H2O_mmol_mol_down / 1000 * 0.622
+  H2O_kg_kg_up = H2O_mmol_mol_up / 1000 * 0.622
+    
+  # calculate e in hPa
+  e_hPa_up = (P_ground_hPa * H2O_kg_kg_up) / 0.622 
+  e_hPa_down  = (P_ground_hPa * H2O_kg_kg_down) / 0.622
+    
+  # delta e
+  delta_e_hPa = e_hPa_up - e_hPa_down 
+    
+  # calculate delta T
+  delta_Ta_dgC = Ta_dgC_up - Ta_dgC_down
+  
+  ######### BREB sensible and latent heat calculation #########
+  Bowen_ratio = 0.667 * (delta_Ta_dgC/delta_e_hPa)
+  H_Wm2_BREB = (R_net_Wm2-G_Wm2)*((Bowen_ratio)/(1+Bowen_ratio))
+  LE_Wm2_BREB = (R_Net_Wm2 - G_Wm2)/(1+Bowen_ratio)
+  
+  # return sensible heat as default
+  if(latent_heat == TRUE){
+    return(LE_Wm2_BREB)
+  }else{
+    return(H_Wm2_BREB)
+  }
+}
+    
+
 
 ```
