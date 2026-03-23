@@ -8,7 +8,7 @@ library(readxl)
 
 
 # read in
-H2O_data = read_excel("data/gas_profile.xlsx", sheet = 2)
+H2O_data = read_excel("data/gas_profile.xlsx", sheet = 3)
 
 # make numeric
 H2O_data[, 4:ncol(H2O_data)] = lapply(H2O_data[, 4:ncol(H2O_data)], as.numeric)
@@ -86,7 +86,7 @@ H2O_data = H2O_data %>%
 ##### prepare delta T from profile data ####
 
 #read in T data from profile csv file 
-T_data = read_excel("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/HTM_data/Profile_14Levels/temperature_profile.xlsx", sheet = 2)
+T_data = read_excel("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/HTM_data/Profile_14Levels/temperature_profile.xlsx", sheet = 3)
 # make numeric
 T_data[, 4:ncol(T_data)] = lapply(T_data[, 4:ncol(T_data)], as.numeric)
 T_data = T_data[-1, ]
@@ -144,8 +144,8 @@ H2O_data_plotting <- H2O_data %>%
 # do the profile plot using geom_path
 H2O_data_plotting %>%
   filter(between(date(datetime),
-                 ymd("2020-06-21"),
-                 ymd("2020-06-26"))) %>%
+                 ymd("2021-06-21"),
+                 ymd("2021-06-26"))) %>%
   filter(gas == "H2O") %>%
   mutate(
     date = date(datetime),
@@ -179,8 +179,8 @@ T_data_plotting <- T_data %>%
 
 T_data_plotting %>%
   filter(between(date(datetime),
-                 ymd("2020-06-21"),
-                 ymd("2020-06-26"))) %>%
+                 ymd("2021-06-21"),
+                 ymd("2021-06-26"))) %>%
   mutate(
     date = date(datetime),
     hour = hour(datetime)
@@ -216,4 +216,6 @@ save(x = slow_profile_data, file = "data/processed/slow_profile_data.RData")
 # remove
 rm(T_data, H2O_data, slow_profile_data, T_data_plotting, H2O_data_plotting)
 rm(data_proc)
+
+
 
