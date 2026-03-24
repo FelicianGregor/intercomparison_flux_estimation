@@ -205,7 +205,7 @@ slow_profile_data = left_join(T_data, H2O_data, by = "datetime")
 
 # rename columns:
 slow_profile_data = slow_profile_data%>%
-  muatate(Ta_dgC_148m = Ta_148m, 
+  mutate(Ta_dgC_148m = Ta_148m, 
          Ta_dgC_30m  = Ta_30m, 
          H2O_mmol_mol_148m = H2O_148m, 
          H2O_mmol_mol_30m = H2O_30m)
