@@ -528,27 +528,20 @@ To do this, we use all (physically reasonable) combinations of measurement heigh
 The available measurement heights are the following:
 
 ```{r}
-# load again all data
-load("../data/processed/sonic_profile_data.RData")
-load("../data/processed/slow_profile_data.RData")
-load("../data/processed/Eco_data_30m.RData")
 
-# H2O_profile data (mmol/mol) lower
-# H2O profile data upper (mmol/mol)
-
-# P ground (ecosystem data)
-# R_net from ecosystem data
-# ground heat flux from ecosystem data
-
-BREB_sens_heat = function(H2O_mmol_mol_up, 
+# define a function fro sensible and latent heat using BREB approach
+BREB = function(H2O_mmol_mol_up, 
                           H2O_mmol_mol_down, 
                           Ta_dgC_up, 
                           Ta_dgC_down, 
                           P_ground_hPa, 
                           R_net_Wm2, 
                           G_Wm2, 
-                          latent_heat = FALSE
+                          type = c("latent", "sensible")
                           ){
+  
+  # get the type of turbulent flux to be calculated
+  type = match.arg(type)
   
   # convert from mmol/mol to kg/kg
   H2O_kg_kg_down = H2O_mmol_mol_down / 1000 * 0.622
@@ -567,16 +560,288 @@ BREB_sens_heat = function(H2O_mmol_mol_up,
   ######### BREB sensible and latent heat calculation #########
   Bowen_ratio = 0.667 * (delta_Ta_dgC/delta_e_hPa)
   H_Wm2_BREB = (R_net_Wm2-G_Wm2)*((Bowen_ratio)/(1+Bowen_ratio))
-  LE_Wm2_BREB = (R_Net_Wm2 - G_Wm2)/(1+Bowen_ratio)
+  LE_Wm2_BREB = (R_net_Wm2 - G_Wm2)/(1+Bowen_ratio)
+  
+  ######### Quality filtering based on Foken, Micrometeorology, page 65 #########
+  H_Wm2_BREB  = ifelse(Bowen_ratio > -1.25 
+                        & Bowen_ratio < -0.75, 
+                          yes = NA, 
+                          no = H_Wm2_BREB)
+  LE_Wm2_BREB = ifelse(Bowen_ratio > -1.25 
+                          & Bowen_ratio < -0.75, 
+                          yes = NA, 
+                          no = LE_Wm2_BREB)
+  
+  ######### additional filtering criteria based on Ohmura 1982 #########
+  # calculate delta q in kg/kg
+  q_up_kg_kg = 0.622*((e_hPa_up)/(P_ground_hPa-0.378*e_hPa_up)) 
+  q_down_kg_kg = 0.622*((e_hPa_down)/(P_ground_hPa-0.378*e_hPa_down))
+  delta_q_kg_kg = q_up_kg_kg - q_down_kg_kg
+  
+  # set some variables
+  lambda = 2.25e6 #in Joule per kg (although in reality dependend on T!)
+  c_p = 1005 #J/kg*K
+  
+  valid =
+      # one direction: both larger 0: >
+      ((-R_net_Wm2 - G_Wm2) > 0 
+       & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) > 0) | # or
+      # now other direction <
+      ((-R_net_Wm2 - G_Wm2) < 0 
+       & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) < 0)
+
+    # apply
+    H_Wm2_BREB  = if_else(valid, true  = H_Wm2_BREB, false = NA)
+    LE_Wm2_BREB = if_else(valid, true = LE_Wm2_BREB, false = NA)
+
   
   # return sensible heat as default
-  if(latent_heat == TRUE){
+  if (type == "latent") {
     return(LE_Wm2_BREB)
-  }else{
+  } else {
     return(H_Wm2_BREB)
   }
 }
+
+```
+
+# tune the heights
+
+```{r}
+
+# heights
+heights <- c(1,4,9,14,19,24,30,40,55,70,85,100,125,148)
+pairs <- combn(heights, m = 2, simplify = FALSE) # get combos, result: c(down, up)
+# create plot?
+plot = FALSE
+
+# storage for predictions
+result = data.frame(datetime = BREB_data_tuning$datetime, 
+                    LE_Wm2_truth = BREB_data_tuning$LE_Wm2_truth, 
+                    H_Wm2_truth = BREB_data_tuning$H_Wm2_truth)
+rmse_mean = c()
+rmse_H = c()
+rmse_LE = c()
+
+
+
+for(i in 1:length(pairs)){
+  
+  h_down = pairs[[i]][1]
+  h_up = pairs[[i]][2]
+  
+  
+  # APPLY FUNCTION for H for 
+  result[[paste0("H_", h_down, "_", h_up)]] = 
+    BREB(
+      H2O_mmol_mol_up = BREB_data_tuning[[paste0("H2O_", h_up, "m")]], 
+      H2O_mmol_mol_down = BREB_data_tuning[[paste0("H2O_", h_down, "m")]], 
+      Ta_dgC_up = BREB_data_tuning[[paste0("Ta_", h_up, "m")]], 
+      Ta_dgC_down = BREB_data_tuning[[paste0("Ta_", h_down, "m")]], 
+      P_ground_hPa = BREB_data_tuning$P_ground_hPa, 
+      R_net_Wm2 = BREB_data_tuning$R_Net_Wm2, 
+      G_Wm2 = BREB_data_tuning$G_Wm2, 
+      type = "sensible"
+    )
+  
+  # apply function for LE
+  result[[paste0("LE_", h_down, "_" , h_up)]] = 
+    BREB(
+      H2O_mmol_mol_up = BREB_data_tuning[[paste0("H2O_", h_up, "m")]], 
+      H2O_mmol_mol_down = BREB_data_tuning[[paste0("H2O_", h_down, "m")]], 
+      Ta_dgC_up = BREB_data_tuning[[paste0("Ta_", h_up, "m")]], 
+      Ta_dgC_down = BREB_data_tuning[[paste0("Ta_", h_down, "m")]], 
+      P_ground_hPa = BREB_data_tuning$P_ground_hPa, 
+      R_net_Wm2 = BREB_data_tuning$R_Net_Wm2, 
+      G_Wm2 = BREB_data_tuning$G_Wm2, 
+      type = "latent"
+    )
+  
+  # plot the results and compare to EC Eco 30m 
+  model_LE = lm(
+    as.formula(paste0("LE_", h_down, "_", h_up, " ~ LE_Wm2_truth")),
+    data = result)
+  
+  # get results & calculate RMSE LE
+  y <- result[[paste0("LE_", h_down, "_", h_up)]]
+  x <- result$LE_Wm2_truth
+  rmse_LE <- append(rmse_LE, sqrt(mean((y - x)^2, na.rm = TRUE)))
+  
+  ###### for H #######
+  model_H = lm(
+    as.formula(paste0("H_", h_down, "_", h_up, " ~ H_Wm2_truth")),
+    data = result)
+  
+  # get results and calculate RMSE for H
+  y <- result[[paste0("H_", h_down, "_", h_up)]]
+  x <- result$H_Wm2_truth
+  rmse_H <- append(rmse_H, sqrt(mean((y - x)^2, na.rm = TRUE)))
+  
+  # store mean
+  rmse_mean = append(rmse_mean, mean(c(rmse_H[i], rmse_LE[i])))
+  
+  
+  if(plot == TRUE){
+    par(mfrow = c(1, 2))
     
+    # plot H
+    plot(
+      x = result$H_Wm2_truth,
+      y = result[[paste0("H_", h_down, "_", h_up)]],
+      ylab = paste0("LE modeled ", h_down, "m & ", h_up, "m [Wm2]"),
+      xlab = "H EC eco 30m [Wm2]",
+      main = paste("H", h_down, "-", h_up), 
+      cex = 0.5,
+      ylim = c(-250, 600)
+    )
+    
+    # grid, legend abline etc
+    grid()
+    abline(0, 1, lwd = 2, lty = 2)
+    abline(model_H, lwd = 2, col = "red")
+    legend(
+      "topleft",
+      legend = paste("R2 =", round(summary(model_H)$r.squared, 3)),
+      bty = "n")
+    
+    # plot LE
+    plot(
+      x = result$LE_Wm2_truth,
+      y = result[[paste0("LE_", h_down, "_", h_up)]],
+      ylab = paste0("LE modeled ", h_down, "m & ", h_up, "m [Wm2]"),
+      xlab = "LE EC eco 30m [Wm2]",
+      main = paste("LE", h_down, "-", h_up),
+      cex = 0.5,
+      ylim = c(-250, 600)
+    )
+    
+    # grid, legend abline etc
+    grid()
+    abline(0, 1, lwd = 2, lty = 2)
+    abline(model_LE, lwd = 2, col = "red")
+    legend(
+      "topleft",
+      legend = paste("R2 =", round(summary(model_LE)$r.squared, 3)),
+      bty = "n")
+    
+    par(mfrow = c(1, 1))
+  }
+  
+}
+
+# extract results
+
+h_down_vec <- sapply(pairs, `[`, 1)
+h_up_vec   <- sapply(pairs, `[`, 2)
+
+res <- data.frame(
+  h_down = h_down_vec,
+  h_up   = h_up_vec,
+  rmse_mean = rmse_mean, 
+  rmse_H = rmse_H, 
+  rmse_LE = rmse_LE
+)
+
+# get mininum rmse
+res[which(res$rmse_mean == min(res$rmse_mean)),] # mean
+res[which(res$rmse_H == min(res$rmse_H)),] # H
+res[which(res$rmse_LE == min(res$rmse_LE)),] # LE
+
+
+# 19 and 40m for overall min(rmse_H & rmse_LE)
+# 14 and 40m for H
+# 19 & 125 for LE
+
+
+
+```
+
+### stability parameter
+
+Probably, the accuracy and precision of the modeled fluxes is influenced by the stability of the ABL. To quantify the stability, the stability parameter $z/\Lambda_*$ can be used and follwing @sorbjan2010 be classified into several classes, and then plotted within the observed vs predicted scatter plot for H and LE. However, it does not seem that
+
+```{r}
+# define a function to classify stability following Sorbjan et al 2010
+
+classify_stability <- function(zeta) {
+  ifelse(is.na(zeta), NA,
+  ifelse(zeta < -1, "xu",
+  ifelse(zeta < -0.6, "vu",
+  ifelse(zeta < -0.2, "u",
+  ifelse(zeta < -0.02, "wu",
+  ifelse(zeta < 0.02, "n",
+  ifelse(zeta < 0.2, "ws",
+  ifelse(zeta < 0.6, "s",
+  ifelse(zeta < 1, "vs",
+         "xs")))))))))
+}
+
+# apply the classification
+sonic_profile_data = sonic_profile_data%>%
+  mutate(stability_classes = classify_stability(`(z-d)/L_[#]`))
+
+# merge with results
+result = left_join(x = result, 
+          y = sonic_profile_data%>%select(datetime, stability_classes), 
+          by = "datetime")
+
+# plot for H and LE
+ggplot(result)+
+  geom_point(aes(x = H_Wm2_truth, y = H_14_40, color = stability_classes), size = .4, alpha = 0.3)+
+  ylab("H 19m & 40m [Wm2]")+
+  xlab("H EC eco [Wm2]")+
+  geom_abline(intercept = 0, slope = 1, color = "black", size = 1.5)+
+  geom_smooth(aes(x = H_Wm2_truth, y = H_14_40, color = stability_classes), method = "lm", size = 1)+
+  theme_bw()
+
+ggplot(result)+
+  geom_point(aes(x = LE_Wm2_truth, y = LE_14_40), size = .4, alpha = 0.3)+
+  ylab("LE 19m & 40m [Wm2]")+
+  xlab("LE EC eco [Wm2]")+
+  geom_abline(intercept = 0, slope = 1, color = "black", size = 1.5)+
+  geom_smooth(aes(x = LE_Wm2_truth, y = LE_14_40, color = stability_classes), method = "lm", size = 1)+
+  theme_bw()
+
+
+```
+
+Inspect whether the stability classes make sense:
+
+-   classify the profiles in the different classes, then plot them.
+
+Yes, I think roughly, they do make sense. However, it does not classify / predict the classes very well, and there are always lots of different shapes of profiles in there. Note also, that the best prediction (based on RMSE) has been achieved using the measurement heights of 14/19m and 40m, indicating that the 10m above the canopy are most important for estimating the fluxes
+
+```{r}
+slow_profile_data%>%
+  left_join(sonic_profile_data%>%select(stability_classes, datetime), 
+           by = "datetime")%>%
+  select(-c(date.y, time.y, doy.y))%>%
+  filter(stability_classes == "xs")%>%
+  pivot_longer(
+    cols = matches("^Ta_"),
+    names_to = "height_m",
+    values_to = "value"
+  ) %>%
+  mutate(
+    # make numeric from character
+    height_m = str_remove(height_m, "Ta_"), 
+    height_m = str_remove(height_m, "m"), 
+    height_m = as.numeric(height_m))%>%
+  filter(between(date(datetime),
+                 ymd("2021-06-01"),
+                 ymd("2021-07-01"))) %>%
+  filter(height_m <50)%>%
+  arrange(height_m)%>%
+  ggplot(aes(
+    x = value,
+    y = height_m,
+    group = datetime
+  )) +
+  geom_path() +
+  ylab("Height [m]") +
+  xlab("Air temperature [°C]") +
+  theme_bw()
+  
 
 
 ```
