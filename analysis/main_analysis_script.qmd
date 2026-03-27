@@ -269,6 +269,7 @@ radiation_filtered = radiation_filtered%>%
 
 # compare EC data from 30m height with ecosystem station measurements
 
+
 ```
 
 # Footprint visualization

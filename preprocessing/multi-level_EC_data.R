@@ -7,6 +7,7 @@ library(dplyr)
 library(purrr)
 library(stringr)
 library(readr)
+library(plotly)
 
 # set main directory (where all folders are)
 main_dir <- "C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/HTM_data/sonic profile/HFdata/2021/output/"
@@ -75,18 +76,25 @@ sonic_profile_data = sonic_profile_data%>%
   )%>%
   ungroup()
 
-# plot the different ensemble members and the mean
+# plot the different ensemble members and the mean, dynamically 
 # select specific time frame
-sonic_profile_data%>%
-  filter(between(date(datetime),
-                 ymd("2021-06-21"),
-                 ymd("2021-06-26")))%>%
-  filter(height == "30m")%>%
-  ggplot()+
-  geom_line(aes(x = datetime, y = `H_[W+1m-2]`, color = folder))+
-  geom_line(aes(x = datetime, y = H_ensemble_mean), color = "black", label = "mean")+
+library(plotly)
+library(ggplot2)
+
+plot_time_data = sonic_profile_data %>%
+  filter(folder == "2021_148m_double_block")
+
+#  filter(between(date(datetime),
+#                 ymd("2021-05-21"),
+#                 ymd("2021-05-26")))
+
+plot_time <- ggplot(plot_time_data) +
+  geom_line(aes(x = datetime, y = `H_[W+1m-2]`, color = folder)) +
   theme_bw()
 
+plot_time
+
+#ggplotly(plot_time)
 
 # make comparison of the detrending procedure: block and linear
 sonic_profile_data%>%
@@ -106,6 +114,29 @@ sonic_profile_data%>%
   geom_abline(intercept = 0, slope = 1, color = "black", size = 1.5)+
   geom_smooth(aes(x = block, y = linear), method = "lm", color = "red", size = 1)+
   facet_grid(~rotation)+
+  theme_bw()
+
+# comparison for measurement height of sonic
+# ATTENTION!!! I HAD TO FILTER OUT VALUES FOR 148m > abs(1000)!!! 
+sonic_profile_data%>%
+  filter(between(date(datetime),
+                 ymd("2021-01-21"),
+                 ymd("2021-05-26")))%>%
+  select(datetime, detrending, rotation, height, `H_[W+1m-2]`) %>%
+  pivot_wider(
+    names_from = height,
+    values_from = `H_[W+1m-2]`
+  )%>%
+  # filter (without any reason, 1000 is arbitrarily chosen by looking at the data)
+  filter(`148m`<1000& `148m`>-1000)%>%
+  ggplot()+
+  geom_point(aes(x = `30m`, y = `70m`), col = "darkgrey", alpha = .3, size = 0.5)+
+  geom_point(aes(x = `30m`, y = `148m`), col = "darkblue", alpha = .3, size = 0.5)+
+  ylab("H 70m / 148m [Wm2]")+
+  xlab("H 30m [Wm2]")+
+  geom_abline(intercept = 0, slope = 1, color = "black", size = 1.5)+
+  geom_smooth(aes(x = `30m`, y = `70m`), method = "lm", color = "red", size = 1)+
+  geom_smooth(aes(x = `30m`, y = `148m`), method = "lm", col = "darkblue", size = 1)+
   theme_bw()
 
  

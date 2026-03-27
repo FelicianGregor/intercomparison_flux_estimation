@@ -144,8 +144,8 @@ H2O_data_plotting <- H2O_data %>%
 # do the profile plot using geom_path
 H2O_data_plotting %>%
   filter(between(date(datetime),
-                 ymd("2021-06-21"),
-                 ymd("2021-06-26"))) %>%
+                 ymd("2021-04-21"),
+                 ymd("2021-04-26"))) %>%
   filter(gas == "H2O") %>%
   mutate(
     date = date(datetime),
@@ -159,6 +159,7 @@ H2O_data_plotting %>%
     color = hour
   )) +
   geom_path() +
+  geom_abline(intercept = 19, slope = 0, color = "grey")+
   ylab("Height [m]") +
   xlab("H2O mixing ratio [mmol/mol]") +
   facet_wrap(~date, ncol = 3, nrow = 3)+
@@ -179,8 +180,8 @@ T_data_plotting <- T_data %>%
 
 T_data_plotting %>%
   filter(between(date(datetime),
-                 ymd("2021-06-21"),
-                 ymd("2021-06-26"))) %>%
+                 ymd("2021-01-21"),
+                 ymd("2021-01-26"))) %>%
   mutate(
     date = date(datetime),
     hour = hour(datetime)
@@ -193,6 +194,7 @@ T_data_plotting %>%
     color = hour
   )) +
   geom_path() +
+  geom_abline(intercept = 19, slope = 0, color = "grey")+
   ylab("Height [m]") +
   xlab("Air temperature [°C]") +
   facet_wrap(~date, ncol = 3, nrow = 3)+
