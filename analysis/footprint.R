@@ -1,0 +1,131 @@
+##### footprint analysis #####
+
+
+#### wind rose #####
+library(openair) # use the openair package for windrose etc
+
+# load data
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData") # EC data output from different heights
+
+# filter for just one height...
+sonic_profile_data = sonic_profile_data%>%
+  filter(folder == "2021_30m_double_linear")
+
+# prepare data
+wind_data = data.frame('wd' = as.numeric(sonic_profile_data[["wind_dir_[deg_from_north]"]]), 
+                       'ws' = as.numeric(sonic_profile_data[["wind_speed_[m+1s-1]"]]), 
+                       date = date(sonic_profile_data[["datetime"]]))
+
+# do for full data series or per month
+polarFreq(wind_data)
+polarFreq(wind_data, type = "month")
+
+
+
+#### simplified footprint #####'
+
+# prepare data first
+wind_dir = data.frame(
+  # need wind direction 
+  dir = as.numeric(sonic_profile_data[["wind_dir_[deg_from_north]"]]), 
+  
+  # and the contribution for the respective percentages in distance meter
+  perc_10 = as.numeric(sonic_profile_data[["x_10%_[m]"]]), 
+  perc_30 = as.numeric(sonic_profile_data[["x_30%_[m]"]]), 
+  perc_50 = as.numeric(sonic_profile_data[["x_50%_[m]"]]), 
+  perc_70 = as.numeric(sonic_profile_data[["x_70%_[m]"]]), 
+  perc_90 = as.numeric(sonic_profile_data[["x_90%_[m]"]]), 
+  
+  # date
+  datetime = sonic_profile_data$datetime
+)
+
+# filter out -9999
+wind_dir[wind_dir == -9999.0000] <- NA
+
+# wind direction in polar coordinates, but is needed in cartesian ones
+# calculate footprint, convert from polar to cartesian coordinates
+percentiles <- c("perc_10", "perc_30", "perc_50", "perc_70", "perc_90")
+
+footprint <- wind_dir %>%
+  mutate(
+    two_hour = floor_date(datetime, "1 hours"), 
+    season = case_when(
+      month(datetime) %in% c(12,1,2) ~ "Winter",
+      month(datetime) %in% c(6,7,8) ~ "Summer",
+      TRUE ~ "Other"
+    )
+  ) %>%
+  group_by(two_hour) %>%
+  summarise(
+    across(all_of(percentiles), 
+           ~mean(.x * sin(dir * pi / 180), na.rm = TRUE), 
+           .names = "x_{.col}"),
+    across(all_of(percentiles), 
+           ~mean(.x * cos(dir * pi / 180), na.rm = TRUE), 
+           .names = "y_{.col}"),
+    season = season, 
+    .groups = "drop"
+  )
+
+# reshape to long format
+footprint_long <- footprint %>%
+  pivot_longer(
+    cols = matches("^(x|y)_perc_"),
+    names_to = c(".value", "percentile"),
+    names_pattern = "(x|y)_(perc_\\d+)"
+  )
+
+# plot
+ggplot(footprint_long) +
+  geom_point(aes(x = x, y = y, color = percentile), alpha = 0.1) +
+  coord_equal() +
+  labs(x = "X (m)", y = "Y (m)", color = "Percentile") +
+  #facet_grid(~season)+
+  theme_bw()
+
+
+##### mfootprint map ####
+library(sf)
+
+# make coordinates from local coordinate system to global
+
+#tower
+tower_lonlat <- st_sfc(
+  st_point(c(13.4189, 56.0976)),crs = 4326) # tower coords from webpage Hyltemossa, in 4326
+tower_utm <- st_transform(tower_lonlat, 32633) # transform to UTM 33N
+tower_coords <- st_coordinates(tower_utm) # extract coordinates
+
+# get tower coordinates in m
+tower_x <- tower_coords[1]
+tower_y <- tower_coords[2]
+
+# add the footprint in m (since it is UTM)
+# do this in the footprint dataframe, with x and y in m in there
+footprint_long <- footprint_long %>%
+  mutate(
+    x_map = x + tower_x,
+    y_map = y + tower_y
+  )
+
+# delete NA (dont do this, then i cannot analyse the missing data)
+#footprint_long = na.omit(footprint_long)
+
+# make it spatial again
+footprint_sf <- st_as_sf(
+  footprint_long,
+  coords = c("x_map", "y_map"),
+  crs = 32633
+)
+
+# make tower UTM 33N 
+tower_sf <- st_sfc(
+  st_point(c(tower_x, tower_y)),
+  crs = 32633
+)
+
+ggplot() +
+  geom_sf(data = footprint_sf, aes(color = percentile), alpha = 0.2) +
+  geom_sf(data = tower_sf, color = "black", size = 3) +
+  #facet_wrap(~season) +
+  theme_minimal()
