@@ -36,7 +36,7 @@ K_theory = function(
   # calculate delta T
   delta_Ta_dgC = Ta_dgC_up - Ta_dgC_down
   # filter Ta difference by minimal difference
-  threshold = 0.3 # K
+  threshold = 0.1 # K
   delta_Ta_dgC = ifelse(abs(delta_Ta_dgC) > threshold, 
                     yes = delta_Ta_dgC, 
                     no = NA)
@@ -63,8 +63,8 @@ K_theory = function(
   
   ######### additional filtering criteria?? #########
   #filtering based on u*
-  LE_Wm2_K_theory = ifelse(u_star < 0.2, yes = NA, no = LE_Wm2_K_theory)
-  H_Wm2_K_theory = ifelse(u_star < 0.2, yes = NA, no = H_Wm2_K_theory)
+  LE_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = LE_Wm2_K_theory)
+  H_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = H_Wm2_K_theory)
   
   
   # return sensible heat as default
@@ -152,7 +152,7 @@ load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_
 
 # some data prep
 H_sonic_30m = sonic_profile_data%>%
-  filter(height == "30m" & rotation == "double" & detrending == "block")%>%
+  filter(height == "30m" & rotation == "double" & detrending == "linear")%>%
   select(datetime, `H_[W+1m-2]`, `u*_[m+1s-1]`)%>% # get the sonic H measured by EC for calculating K
   rename(H_EC_measured_sonic_30m = `H_[W+1m-2]`, 
          u_star = `u*_[m+1s-1]`)
@@ -351,7 +351,7 @@ for(i in 1:3){
     plot(
       x = result$H_Wm2_Eco,
       y = result[[paste0("H_", h_down, "_", h_up)]],
-      ylab = paste0("LE modeled K-theory", h_down, "m & ", h_up, "m [Wm2]"),
+      ylab = paste0("H modeled K-theory", h_down, "m & ", h_up, "m [Wm2]"),
       xlab = "H EC eco 30m [Wm2]",
       main = paste("H", h_down, "-", h_up), 
       cex = 0.5,
@@ -398,8 +398,13 @@ for(i in 1:3){
   } 
 }
 
+
+
+
+
 plot = ggplot(result)+
   geom_line(aes(x = datetime, y = LE_24_55), color = "darkred")+
   geom_line(aes(x = datetime, y = LE_Wm2_Eco), color = "black")
+
   
-ggplotly(plot)
+#ggplotly(plot)

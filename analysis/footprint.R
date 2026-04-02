@@ -3,6 +3,8 @@
 
 #### wind rose #####
 library(openair) # use the openair package for windrose etc
+library(tidyverse)
+library(ggspatial)
 
 # load data
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData") # EC data output from different heights
@@ -81,7 +83,7 @@ ggplot(footprint_long) +
   geom_point(aes(x = x, y = y, color = percentile), alpha = 0.1) +
   coord_equal() +
   labs(x = "X (m)", y = "Y (m)", color = "Percentile") +
-  #facet_grid(~season)+
+  facet_grid(~season)+
   theme_bw()
 
 
@@ -113,7 +115,7 @@ footprint_long <- footprint_long %>%
 
 # make it spatial again
 footprint_sf <- st_as_sf(
-  footprint_long,
+  footprint_long%>%drop_na(),
   coords = c("x_map", "y_map"),
   crs = 32633
 )
@@ -125,7 +127,31 @@ tower_sf <- st_sfc(
 )
 
 ggplot() +
-  geom_sf(data = footprint_sf, aes(color = percentile), alpha = 0.2) +
-  geom_sf(data = tower_sf, color = "black", size = 3) +
+  geom_sf(data = footprint_sf, aes(color = percentile), alpha = 0.1) +
+  geom_sf(data = tower_sf, color = "black", size = 4) +
   #facet_wrap(~season) +
-  theme_minimal()
+  theme_bw()
+
+### add basemap
+library(sf)
+library(ggplot2)
+library(maptiles)
+
+# Get bounding box
+bbox <- st_bbox(footprint_sf)
+
+# Download satellite tiles
+tiles <- get_tiles(bbox, provider = "Esri.WorldImagery", zoom = 12)
+
+ggplot() +
+  geom_raster(data = tiles) +
+  geom_sf(data = footprint_sf, fill = NA, color = "red")
+
+
+### another approach
+library(ggspatial)
+
+ggplot() +
+  annotation_map_tile(type = "osm") +
+  geom_sf(data = footprint_sf, fill = NA, color = percentile) +
+  coord_sf()

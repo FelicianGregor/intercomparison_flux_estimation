@@ -260,10 +260,10 @@ legend("topleft",
 This is some code (wont run, since variable names changed) to calculate the eddy diffusivity for sensible heat $K_H$, which can be used later for the calculation of fluxes from simple gradients, without the need to use MOST Theory. Note, that the 118 in the calculation results from 148m-30m.
 
 ```{r}
-radiation_filtered = radiation_filtered%>%
-  mutate(
-    K_H = - (sensible_heat_Wm2_Eddy_Cov_uncorrected)/(delta_T_C/118)
-  )
+#radiation_filtered = radiation_filtered%>%
+#  mutate(
+#    K_H = - (sensible_heat_Wm2_Eddy_Cov_uncorrected)/(delta_T_C/118)
+#  )
 
 # when now using K_H for calculating the sensible heat flux using K theory, this would be exactly the same result
 
@@ -338,8 +338,10 @@ wind_dir[wind_dir == -9999.0000] <- NA
 footprint <- wind_dir %>%
   mutate(
     wd_rad = dir * pi / 180,
-    x = perc_90 * sin(wd_rad),
-    y = perc_90 * cos(wd_rad)
+    x_90 = perc_90 * sin(wd_rad),
+    y_90 = perc_90 * cos(wd_rad), 
+    x_30 = perc_30 * sin(wd_rad),
+    y_30 = perc_30 * cos(wd_rad), 
   )
 
 # -9999 --> NAs
@@ -366,10 +368,10 @@ wind_dir%>%
   ungroup()
 
 # plot
-ggplot(footprint, aes(x = x, y = y)) +
-  geom_point(alpha = 0.3) +
-  coord_equal()+
-  labs(color = "Percentile")
+ggplot(footprint) +
+  geom_point(aes(x = x_90, y = y_90), alpha = 0.3, col = "black") +
+  geom_point(aes(x = x_30, y = y_30), alpha = 0.3, col = "red") +
+  coord_equal()
 
 
 # 
