@@ -398,13 +398,29 @@ for(i in 1:3){
   } 
 }
 
+### eyeball results for different months
 
+plot = result %>%
+  filter(between(datetime,
+                 as.POSIXct("2021-07-01 01:00:00", tz = "UTC"),
+                 as.POSIXct("2021-07-07 01:00:00", tz = "UTC"))) %>%
+  ggplot() +
+  geom_line(aes(x = datetime, y = H_24_55), color = "darkred") +
+  geom_line(aes(x = datetime, y = H_Wm2_Eco), color = "black")
 
+# save the result to use later
+K_theory = result%>%
+  select(datetime, 
+         LE_Wm2_Eco, 
+         H_Wm2_Eco, 
+         H_EC_measured_sonic_30m, 
+         u_star, 
+         H_24_55, 
+         LE_24_55)%>%
+  rename(LE_24_55_K = LE_24_55, 
+         H_24_55_K = H_24_55)
 
-
-plot = ggplot(result)+
-  geom_line(aes(x = datetime, y = LE_24_55), color = "darkred")+
-  geom_line(aes(x = datetime, y = LE_Wm2_Eco), color = "black")
-
+# save
+saveRDS(K_theory, "data/processed/fluxes_K_theory.RData")
   
 #ggplotly(plot)
