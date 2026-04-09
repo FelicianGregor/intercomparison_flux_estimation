@@ -217,7 +217,6 @@ save(x = slow_profile_data, file = "data/processed/slow_profile_data.RData")
 
 # remove
 rm(T_data, H2O_data, slow_profile_data, T_data_plotting, H2O_data_plotting)
-rm(data_proc)
 
 
 
