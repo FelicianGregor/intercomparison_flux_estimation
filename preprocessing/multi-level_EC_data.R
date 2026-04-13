@@ -139,7 +139,57 @@ sonic_profile_data%>%
   geom_smooth(aes(x = `30m`, y = `148m`), method = "lm", col = "darkblue", size = 1)+
   theme_bw()
 
- 
+
+# time series plot with all the data processing options
+height_comp <- sonic_profile_data %>%
+  filter(
+    between(date(datetime),
+            ymd("2021-05-21"),
+            ymd("2021-05-26"))
+  ) %>%
+  mutate(`H_[W+1m-2]` = 
+           ifelse(`qc_H_[#]`==  2, yes = NA, no = `H_[W+1m-2]`))%>%
+  ggplot() +
+  geom_line(aes(y = `H_[W+1m-2]`, x = datetime, color = folder)) +
+  theme_bw()
+
+height_comp
+
+# compare them using a scatter plot
+# load EC data from ecosystem station for comparison
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/Eco_data_30m.RData") # Ecosystem data 30m
+
+sonic_profile_data %>%
+  left_join(
+    Eco_data_30m %>%
+      rename(H_Wm2_Eco = H_Wm2) %>%
+      select(datetime, H_Wm2_Eco),
+    by = "datetime"
+  ) %>%
+  #filter(
+   # between(date(datetime),
+    #        ymd("2021-01-21"),
+    #        ymd("2021-05-26"))
+  #) %>%
+  filter(`qc_H_[#]` != 2 & `qc_H_[#]` != 1)%>%
+  # filter out spikes very roughly
+  filter(abs(H_ensemble_mean) < 750 )%>%
+  ggplot(aes(x = H_Wm2_Eco, y = H_ensemble_mean)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_abline(slope = 1, intercept = 0, color = "black", linewidth = 2) +
+  geom_smooth(method = "lm", color = "red")+
+  coord_equal(xlim = c(-170, 750),
+             ylim = c(-170, 750))+
+  facet_grid(~height)+
+  labs(y = "H [Wm2]", 
+       x = "H [Wm2] 30m Ecosystem station")+
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+  )
+  
+
+
 # save the full year to .RData
 save(sonic_profile_data, file = "data/processed/sonic_profile_data.Rdata")
 
