@@ -334,13 +334,11 @@ plot
 BREB = result%>%
   select(datetime, 
          LE_Wm2_truth, 
-         H_Wm2_truth, 
-         H_EC_measured_sonic_30m, 
-         u_star, 
-         H_24_55, 
-         LE_24_55)%>%
-  rename(LE_24_55_BREB = LE_24_55, 
-         H_24_55_BREB = H_24_55)
+         H_Wm2_truth,
+         H_19_40, 
+         LE_19_40)%>%
+  rename(LE_19_40_BREB = LE_19_40, 
+         H_19_40_BREB = H_19_40)
 
 # save
-saveRDS(BREB, "data/processed/fluxes_BREB.RData")
+save(x = BREB, file = "data/processed/fluxes_BREB.RData")

@@ -160,11 +160,18 @@ H_sonic_30m = sonic_profile_data%>%
 # join in profle dataset
 K_data_tuning = slow_profile_data%>%
   left_join(H_sonic_30m, by = "datetime")%>%
-  left_join(Eco_data_30m%>%select(datetime, P_ground_hPa, LE_Wm2, H_Wm2), by = "datetime")%>%
+  left_join(Eco_data_30m%>%select(datetime, P_ground_hPa, LE_Wm2, H_Wm2, R_Net_Wm2), by = "datetime")%>%
   rename(
     LE_Wm2_Eco = LE_Wm2, 
     H_Wm2_Eco = H_Wm2
   )
+
+#K_data_tuning = K_data_tuning%>%
+#   filter a bit 
+#  filter(between(datetime,
+#               as.POSIXct("2021-04-01 01:00:00", tz = "UTC"),
+#               as.POSIXct("2021-09-01 01:00:00", tz = "UTC")))
+#  #filter(R_Net_Wm2 > 0) # only daytime values, defined by net radiation
 
 # select only needed vars
 K_data_tuning = K_data_tuning %>%
@@ -402,11 +409,19 @@ for(i in 1:3){
 
 plot = result %>%
   filter(between(datetime,
-                 as.POSIXct("2021-07-01 01:00:00", tz = "UTC"),
-                 as.POSIXct("2021-07-07 01:00:00", tz = "UTC"))) %>%
+                 as.POSIXct("2021-06-07 01:00:00", tz = "UTC"),
+                 as.POSIXct("2021-06-17 01:00:00", tz = "UTC"))) %>%
   ggplot() +
-  geom_line(aes(x = datetime, y = H_24_55), color = "darkred") +
-  geom_line(aes(x = datetime, y = H_Wm2_Eco), color = "black")
+  geom_line(aes(x = datetime, y = LE_30_55), color = "darkred") +
+  geom_line(aes(x = datetime, y = LE_Wm2_Eco), color = "black")+
+  labs(y = "LE K-theory 30m - 55m [Wm2]", 
+       x = "")+
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+  )
+
+plot
 
 # save the result to use later
 K_theory = result%>%
@@ -421,6 +436,6 @@ K_theory = result%>%
          H_24_55_K = H_24_55)
 
 # save
-saveRDS(K_theory, "data/processed/fluxes_K_theory.RData")
+save(x = K_theory, file = "data/processed/fluxes_K_theory.RData")
   
 #ggplotly(plot)
