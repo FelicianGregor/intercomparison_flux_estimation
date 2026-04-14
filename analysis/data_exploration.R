@@ -22,7 +22,28 @@ summer_week = seq(
   to   = as.POSIXct("2021-06-30 00:00:00", tz = "UTC"),
   by   = "30 min")
 
+# data filtering by R_net-based threshold
+sonic_profile_data = sonic_profile_data %>%
+  left_join(
+    Eco_data_30m %>%
+      select(datetime, H_Wm2, R_Net_Wm2) %>%
+      rename(H_Wm2_Eco = H_Wm2),
+    by = "datetime"
+  ) %>%
+  mutate(
+    H_ensemble_mean = ifelse(
+      abs(H_ensemble_mean) > abs(R_Net_Wm2), 
+      yes = NA, 
+      no = H_ensemble_mean))%>%
+  mutate(`H_[W+1m-2]` = ifelse(
+    abs(`H_[W+1m-2]`) > abs(`H_[W+1m-2]`), 
+    yes = NA, 
+    no = `H_[W+1m-2]`))
 
+ggplot(sonic_profile_data) +
+  geom_line(aes(x = datetime, y = `H_[W+1m-2]`), col = "red")
+
+#ggplotly(filtering)
 
 ##############################
 ##### EC data processing #####
@@ -33,13 +54,7 @@ summer_week = seq(
 # - get the K values, over time
 
 #### compare H from 3 heights to Eco ####
-sonic_profile_data %>%
-  left_join(
-    Eco_data_30m %>%
-      rename(H_Wm2_Eco = H_Wm2) %>%
-      select(datetime, H_Wm2_Eco),
-    by = "datetime"
-  ) %>%
+sonic_profile_data%>%
   #filter(datetime %in% winter_week)%>%
   filter(`qc_H_[#]` != 2)%>%
   # filter out spikes very roughly
@@ -60,20 +75,15 @@ sonic_profile_data %>%
   facet_grid(~height)+
   labs(y = "H [Wm2]", 
        x = "H [Wm2] 30m Ecosystem station")+
-  labs(title = "no additional filter")
+  labs(title = "no additional filter")+
   theme_classic() +
   theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5), 
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
   )
 
 #### compare for filtered by u* ####
 sonic_profile_data %>%
-  left_join(
-    Eco_data_30m %>%
-      rename(H_Wm2_Eco = H_Wm2) %>%
-      select(datetime, H_Wm2_Eco),
-    by = "datetime"
-  ) %>%
   filter(`qc_H_[#]` != 2)%>%
   # u* classification
   mutate(
@@ -103,18 +113,13 @@ sonic_profile_data %>%
   theme_classic() +
   labs(title = "U* and heights")+
   theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5), 
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
   )
 
 
 # stability, heights
 sonic_profile_data %>%
-  left_join(
-    Eco_data_30m %>%
-      rename(H_Wm2_Eco = H_Wm2) %>%
-      select(datetime, H_Wm2_Eco),
-    by = "datetime"
-  ) %>%
   filter(`qc_H_[#]` != 2) %>%
   mutate(
     stability = case_when(
@@ -147,17 +152,12 @@ sonic_profile_data %>%
   ) +
   theme_classic() +
   theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5), 
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
   )
 
 #### daytime, heights ####
 sonic_profile_data %>%
-  left_join(
-    Eco_data_30m %>%
-      rename(H_Wm2_Eco = H_Wm2) %>%
-      select(datetime, H_Wm2_Eco),
-    by = "datetime"
-  ) %>%
   mutate(
     day_night = factor(`daytime_[1=daytime]`,
                        levels = c(0, 1),
@@ -182,17 +182,12 @@ sonic_profile_data %>%
        x = "H [Wm2] 30m Ecosystem station")+
   theme_classic() +
   theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5), 
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
   )
 
-##### day, night and stability ####
-sonic_profile_data %>%
-  left_join(
-    Eco_data_30m %>%
-      rename(H_Wm2_Eco = H_Wm2) %>%
-      select(datetime, H_Wm2_Eco),
-    by = "datetime"
-  ) %>%
+##### daytime and stability ####
+sonic_profile_data%>%
   filter(`qc_H_[#]` != 2) %>%
   # create stability classes
   mutate(
@@ -212,7 +207,7 @@ sonic_profile_data %>%
   ggplot(aes(x = H_Wm2_Eco, y = H_ensemble_mean)) +
   geom_point(alpha = 0.3, size = 0.8) +
   geom_abline(slope = 1, intercept = 0,
-              color = "black", linewidth = 2) +
+              color = "black", linewidth = 1) +
   # overall regression (ALL data in panel)
   geom_smooth(method = "lm",
               color = "darkgrey",
@@ -252,17 +247,12 @@ sonic_profile_data %>%
        title = "day, night, stability") +
   theme_classic() +
   theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
   )
 
 #### u*, stability, heights ####
 sonic_profile_data %>%
-  left_join(
-    Eco_data_30m %>%
-      rename(H_Wm2_Eco = H_Wm2) %>%
-      select(datetime, H_Wm2_Eco),
-    by = "datetime"
-  ) %>%
   filter(`qc_H_[#]` != 2) %>%
   # stability classes
   mutate(
@@ -328,7 +318,8 @@ sonic_profile_data %>%
   ) +
   theme_classic() +
   theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5), 
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
   )
 
 
@@ -358,7 +349,14 @@ height_comp_summer <- sonic_profile_data %>%
                "70" = "70 m",
                "148" = "148 m")) +
   labs(x = "", y = "H [Wm2]")+
-  theme_bw()
+  theme_classic()+
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5), 
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
+  )
+
+height_comp_summer
+
 
 # winter week
 height_comp_winter <- sonic_profile_data %>%
@@ -382,7 +380,11 @@ height_comp_winter <- sonic_profile_data %>%
                "70" = "70 m",
                "148" = "148 m")) +
   labs(x = "", y = "H [Wm2]")+
-  theme_bw()
+  theme_classic()+
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5), 
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
+  )
 
 # combine
 height_comp_winter / height_comp_summer
@@ -413,40 +415,92 @@ ensemble = ensemble%>%
             by = "datetime")
 
 # compare the different heights 
-# ustar
-ensemble%>%
-  filter(abs(H_wm2_mean) < 800 )%>%
-  ggplot()+
-  geom_boxplot(aes(x = as.factor(height), y = u_star_mean))+
-  labs(x = "height [m]", 
-       y = "u*")+
+
+H_summer = ensemble %>%
+  filter(datetime %in% summer_week) %>%
+  ggplot() +
+  geom_line(aes(x = datetime, y = H_wm2_mean,
+                color = as.factor(height))) +
+  labs(x = "", y = "H") +
   theme_bw()
 
-# z_d_L_mean using boxplots
-ensemble%>%
-  filter(abs(H_wm2_mean) < 800 )%>%
-  filter(abs(z_d_L_mean) <200)%>%
+# time series plot L
+L_summer = ensemble%>%
+  filter(datetime %in% summer_week)%>%
+  filter(L_mean>-1000)%>%
+  #filter(abs(z_d_L_mean) < 200)%>%
+  filter(between(date(datetime),
+                 ymd("2021-06-01"),
+                 ymd("2021-07-16")))%>%
   ggplot()+
-  geom_boxplot(aes(x = as.factor(height), y = z_d_L_mean))+
-  labs(x = "height [m]", 
-       y = "z-d/L")+
+  geom_line(aes(x = datetime, y = L_mean, 
+                   color = as.factor(height)))+
+  labs(x = "", 
+       y = "L")+
   theme_bw()
 
-# time series plot
-ob_ts = ensemble%>%
-  filter(abs(H_wm2_mean) < 800 )%>%
-  filter(abs(z_d_L_mean) < 200)%>%
+z_d_L_summer = ensemble%>%
+  filter(datetime %in% summer_week)%>%
+  filter(z_d_L_mean>-100)%>%
+  #filter(abs(z_d_L_mean) < 200)%>%
   filter(between(date(datetime),
                  ymd("2021-06-01"),
                  ymd("2021-07-16")))%>%
   ggplot()+
   geom_line(aes(x = datetime, y = z_d_L_mean, 
-                   color = as.factor(height)))+
+                color = as.factor(height)))+
   labs(x = "", 
        y = "z-d/L")+
   theme_bw()
 
-ggplotly(ob_ts)
+u_star_summer = ensemble%>%
+  filter(datetime %in% summer_week)%>%
+  ggplot()+
+  geom_line(aes(x = datetime, y =u_star_mean, 
+                color = as.factor(height)))+
+  labs(x = "", 
+       y = "u* [m/s]")+
+  theme_bw()
+
+H_summer / u_star_summer/z_d_L_summer / L_summer
+
+#### for winter ####
+H_winter = ensemble %>%
+  filter(datetime %in% winter_week) %>%
+  ggplot() +
+  geom_line(aes(x = datetime, y = H_wm2_mean,
+                color = as.factor(height))) +
+  labs(x = "", y = "H") +
+  theme_bw()
+
+L_winter = ensemble %>%
+  filter(datetime %in% winter_week) %>%
+  filter(abs(L_mean) < 1000) %>%
+  ggplot() +
+  geom_line(aes(x = datetime, y = L_mean,
+                color = as.factor(height))) +
+  labs(x = "", y = "L") +
+  theme_bw()
+
+z_d_L_winter = ensemble %>%
+  filter(datetime %in% winter_week) %>%
+  filter(z_d_L_mean > -200) %>%
+  ggplot() +
+  geom_line(aes(x = datetime, y = z_d_L_mean,
+                color = as.factor(height))) +
+  labs(x = "", y = "z-d/L") +
+  theme_bw()
+
+u_star_winter = ensemble %>%
+  filter(datetime %in% winter_week) %>%
+  ggplot() +
+  geom_line(aes(x = datetime, y = u_star_mean,
+                color = as.factor(height))) +
+  labs(x = "", y = "u* [m/s]") +
+  theme_bw()
+
+H_winter / u_star_winter / z_d_L_winter / L_winter
+
 
 # calculate mean diurnal course of z-d/L during summer
 ensemble%>%
@@ -474,18 +528,8 @@ ensemble%>%
   facet_wrap(~month, ncol = 4, nrow = 3)
 
 
-# Obhukov length L
-ensemble%>%
-  filter(abs(H_wm2_mean) < 800 )%>%
-  ggplot()+
-  geom_boxplot(aes(x = as.factor(height), y = L_mean))+
-  labs(x = "height [m]", 
-       y = "Obhukov length [m]")+
-  theme_bw()
-
 # as time series
 ggplot(ensemble%>%
-        filter(abs(H_wm2_mean) < 800 )%>%
          mutate(
            L_mean_filtered = L_mean,
            L_mean_filtered = ifelse(L_mean_filtered > 20000, 20000, L_mean_filtered),
@@ -617,20 +661,20 @@ K_data_148 = ensemble%>%
     u_star = u_star_mean
   ))%>%
   mutate(
-    delta_Ta_30 = Ta_148m-Ta_125m
+    delta_Ta_148 = Ta_148m-Ta_125m
   )
 
 #plot the gradients - all together
 grad = K_data_30%>%
-  filter(datetime %in% winter_week)%>%
+  filter(datetime %in% summer_week)%>%
   ggplot()+
   #geom_line(aes(x = datetime, y = K_30m))+
   geom_line(aes(x = datetime, y = K_30m), col = "red")+
-  geom_line(aes(x = datetime, y = delta_Ta_30), col = "blue")+
+  geom_line(aes(x = datetime, y = -delta_Ta_30), col = "blue")+
   labs(y = "delta Ta (40-19)", x = "")+
   theme_bw()
 
-ggplotly(grad)
+#ggplotly(grad)
 
 # calculate K from u_star (for the neutral case)
 K = K_data%>%
@@ -639,14 +683,126 @@ K = K_data%>%
   geom_line(aes(x = datetime, y = K_30m))+
   geom_line(aes(x = datetime, y = K_neutral), col = "red")
 
-ggplotly(K)
+#ggplotly(K)
+
+# plot all the K's and gradients: summer
+K_summer = K_data_30%>%
+  filter(datetime %in% summer_week)%>%
+  left_join(
+    K_data_70%>%select(K_70m, delta_Ta_70, datetime), 
+    by = "datetime"
+  )%>%
+  left_join(
+    K_data_148%>%select(K_148m, delta_Ta_148, datetime), 
+    by = "datetime"
+  )%>%
+  ggplot()+
+  geom_line( aes(
+    x = datetime, 
+    y = K_30m), color = "red"
+  )+
+  geom_line( aes(
+    x = datetime, 
+    y = K_70m), color = "darkgreen"
+  )+
   
+  geom_line( aes(
+    x = datetime, 
+    y = K_148m), color = "blue"
+  )+
+  labs(y = "K", x = "")+
+  theme_bw()
 
-
-
-
-
+grad_summer = K_data_30%>%
+  filter(datetime %in% summer_week)%>%
+  left_join(
+    K_data_70%>%select(K_70m, delta_Ta_70, datetime), 
+    by = "datetime"
+  )%>%
+  left_join(
+    K_data_148%>%select(K_148m, delta_Ta_148, datetime), 
+    by = "datetime"
+  )%>%
+  ggplot()+
+  geom_line( aes(
+    x = datetime, 
+    y = delta_Ta_30), color = "red"
+  )+
+  geom_line( aes(
+    x = datetime, 
+    y = delta_Ta_70), color = "darkgreen"
+  )+
   
+  geom_line( aes(
+    x = datetime, 
+    y = delta_Ta_148), color = "blue"
+  )+
+  labs(y = "delta Ta [K]", x = "")+
+  theme_bw()
+
+K_summer / grad_summer 
+
+# plot all the K's and gradients: summer
+K_winter = K_data_30%>%
+  filter(datetime %in% winter_week)%>%
+  left_join(
+    K_data_70%>%select(K_70m, delta_Ta_70, datetime), 
+    by = "datetime"
+  )%>%
+  left_join(
+    K_data_148%>%select(K_148m, delta_Ta_148, datetime), 
+    by = "datetime"
+  )%>%
+  ggplot()+
+  geom_line( aes(
+    x = datetime, 
+    y = K_30m), color = "red"
+  )+
+  geom_line( aes(
+    x = datetime, 
+    y = K_70m), color = "darkgreen"
+  )+
+  
+  geom_line( aes(
+    x = datetime, 
+    y = K_148m), color = "blue"
+  )+
+  labs(y = "K", x = "")+
+  theme_bw()
+
+grad_winter = K_data_30%>%
+  filter(datetime %in% winter_week)%>%
+  left_join(
+    K_data_70%>%select(K_70m, delta_Ta_70, datetime), 
+    by = "datetime"
+  )%>%
+  left_join(
+    K_data_148%>%select(K_148m, delta_Ta_148, datetime), 
+    by = "datetime"
+  )%>%
+  ggplot()+
+  geom_line( aes(
+    x = datetime, 
+    y = delta_Ta_30), color = "red"
+  )+
+  geom_line( aes(
+    x = datetime, 
+    y = delta_Ta_70), color = "darkgreen"
+  )+
+  
+  geom_line( aes(
+    x = datetime, 
+    y = delta_Ta_148), color = "blue"
+  )+
+  labs(y = "delta Ta [K]", x = "")+
+  theme_bw()
+
+K_winter / grad_winter / u_star_winter / L_winter
+
+
+K_summer / grad_summer / u_star_summer / L_summer
+
+ 
 
 
 
