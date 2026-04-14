@@ -3,21 +3,36 @@
 # packages
 library(tidyverse)
 library(ggpmisc)
+library(plotly)
+library(patchwork) # to combine plots
 
 # load data
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/slow_profile_data.RData") # load the 14 level profile data for Ta and Humidity
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/Eco_data_30m.RData") # Ecosystem data 30m
-load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/slow_profile_data.RData") # 14 level profile data
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData") # load profile data
+
+# define two weeks (one in summer and one in winter) to use throughout the analysis
+winter_week <- seq(
+  from = as.POSIXct("2021-01-23 00:00:00", tz = "UTC"),
+  to   = as.POSIXct("2021-01-30 00:00:00", tz = "UTC"),
+  by   = "30 min")
+
+summer_week = seq(
+  from = as.POSIXct("2021-06-23 00:00:00", tz = "UTC"),
+  to   = as.POSIXct("2021-06-30 00:00:00", tz = "UTC"),
+  by   = "30 min")
+
+
 
 ##############################
 ##### EC data processing #####
 ##############################
 
-# - compare the different heights
+# - compare the different heights - done 
 # - get u*, L 
 # - get the K values, over time
 
-# compare H from 3 heights to Eco data using a scatter plot 
+#### compare H from 3 heights to Eco ####
 sonic_profile_data %>%
   left_join(
     Eco_data_30m %>%
@@ -25,11 +40,7 @@ sonic_profile_data %>%
       select(datetime, H_Wm2_Eco),
     by = "datetime"
   ) %>%
-  #filter(
-  # between(date(datetime),
-  #        ymd("2021-01-21"),
-  #        ymd("2021-05-26"))
-  #) %>%
+  #filter(datetime %in% winter_week)%>%
   filter(`qc_H_[#]` != 2)%>%
   # filter out spikes very roughly
   filter(abs(H_ensemble_mean) < 750 )%>%
@@ -49,26 +60,332 @@ sonic_profile_data %>%
   facet_grid(~height)+
   labs(y = "H [Wm2]", 
        x = "H [Wm2] 30m Ecosystem station")+
+  labs(title = "no additional filter")
   theme_classic() +
   theme(
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
   )
 
-# compare the heights as time series plot
-# time series plot with all the data processing options
-height_comp <- sonic_profile_data %>%
-  filter(
-    between(date(datetime),
-            ymd("2021-05-21"),
-            ymd("2021-05-26"))
+#### compare for filtered by u* ####
+sonic_profile_data %>%
+  left_join(
+    Eco_data_30m %>%
+      rename(H_Wm2_Eco = H_Wm2) %>%
+      select(datetime, H_Wm2_Eco),
+    by = "datetime"
   ) %>%
-  mutate(`H_[W+1m-2]` = 
-           ifelse(`qc_H_[#]`==  2, yes = NA, no = `H_[W+1m-2]`))%>%
+  filter(`qc_H_[#]` != 2)%>%
+  # u* classification
+  mutate(
+    u_star_class = case_when(
+      `u*_[m+1s-1]` <= 0.15 ~ "u* ≤ 0.15",
+      `u*_[m+1s-1]` > 0.15  ~ "u* > 0.15"
+    )
+  ) %>%
+  # filter out spikes very roughly
+  filter(abs(H_ensemble_mean) < 750 )%>%
+  ggplot(aes(x = H_Wm2_Eco, y = H_ensemble_mean)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_abline(slope = 1, intercept = 0, color = "black", linewidth = 1) +
+  geom_smooth(method = "lm", color = "red")+
+  # add the equation of the linear model + R2
+  stat_poly_eq(
+    formula = y ~ x,
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    parse = TRUE,
+    size = 4, color = "black"
+  )+
+  coord_equal(xlim = c(-170, 750),
+              ylim = c(-170, 750))+
+  facet_grid(u_star_class~height)+
+  labs(y = "H [Wm2]", 
+       x = "H [Wm2] 30m Ecosystem station")+
+  theme_classic() +
+  labs(title = "U* and heights")+
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+  )
+
+
+# stability, heights
+sonic_profile_data %>%
+  left_join(
+    Eco_data_30m %>%
+      rename(H_Wm2_Eco = H_Wm2) %>%
+      select(datetime, H_Wm2_Eco),
+    by = "datetime"
+  ) %>%
+  filter(`qc_H_[#]` != 2) %>%
+  mutate(
+    stability = case_when(
+      `L_[m]` > 50  ~ "stable (L > 50)",
+      `L_[m]` < -50 ~ "unstable (L < -50)",
+      TRUE          ~ "neutral (abs(L) < 50)"
+    )
+  ) %>%
+  filter(abs(H_ensemble_mean) < 750) %>%
+  ggplot(aes(x = H_Wm2_Eco, y = H_ensemble_mean)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_abline(slope = 1, intercept = 0, color = "black", linewidth = 1) +
+  geom_smooth(aes(color = stability), method = "lm") +
+  stat_poly_eq(
+    aes(label = paste(after_stat(eq.label),
+                      after_stat(rr.label),
+                      sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 4,
+    color = "black",
+    label.y = 0.95
+  ) +
+  coord_equal(xlim = c(-170, 750),
+              ylim = c(-170, 750)) +
+  facet_grid(stability ~ height) +
+  labs(
+    y = "H [Wm2]",
+    x = "H [Wm2] 30m Ecosystem station"
+  ) +
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+  )
+
+#### daytime, heights ####
+sonic_profile_data %>%
+  left_join(
+    Eco_data_30m %>%
+      rename(H_Wm2_Eco = H_Wm2) %>%
+      select(datetime, H_Wm2_Eco),
+    by = "datetime"
+  ) %>%
+  mutate(
+    day_night = factor(`daytime_[1=daytime]`,
+                       levels = c(0, 1),
+                       labels = c("Night", "Day"))
+  ) %>%
+  filter(abs(H_ensemble_mean) < 750 ) %>%
+  ggplot(aes(x = H_Wm2_Eco, y = H_ensemble_mean)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_abline(slope = 1, intercept = 0, color = "black", linewidth = 1) +
+  geom_smooth(method = "lm", color = "darkgrey") +
+  geom_smooth(aes(color = day_night), method = "lm")+
+  stat_poly_eq(
+    formula = y ~ x,
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    parse = TRUE,
+    size = 3, color = "black"
+  ) +
+  coord_equal(xlim = c(-170, 750),
+              ylim = c(-170, 750)) +
+  facet_grid(day_night~height) + 
+  labs(y = "H [Wm2]", 
+       x = "H [Wm2] 30m Ecosystem station")+
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+  )
+
+##### day, night and stability ####
+sonic_profile_data %>%
+  left_join(
+    Eco_data_30m %>%
+      rename(H_Wm2_Eco = H_Wm2) %>%
+      select(datetime, H_Wm2_Eco),
+    by = "datetime"
+  ) %>%
+  filter(`qc_H_[#]` != 2) %>%
+  # create stability classes
+  mutate(
+    stability = case_when(
+      `L_[m]` > 50  ~ "stable (L > 50)",
+      `L_[m]` < -50 ~ "unstable (L < -50)",
+      TRUE          ~ "neutral (abs(L) < 50)"
+    )
+  )%>%
+  # classify day and nightime
+  mutate(
+    day_night = factor(`daytime_[1=daytime]`,
+                       levels = c(0, 1),
+                       labels = c("Night", "Day"))
+  ) %>%
+  filter(abs(H_ensemble_mean) < 750 ) %>%
+  ggplot(aes(x = H_Wm2_Eco, y = H_ensemble_mean)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_abline(slope = 1, intercept = 0,
+              color = "black", linewidth = 2) +
+  # overall regression (ALL data in panel)
+  geom_smooth(method = "lm",
+              color = "darkgrey",
+              linewidth = 1.5) +
+  # eqn for all data
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 3,
+    color = "black"
+  ) +
+  # day/night regressions
+  geom_smooth(aes(color = day_night),
+              method = "lm",
+              linewidth = 1.2) +
+  # eqn for day night time
+  stat_poly_eq(
+    aes(color = day_night,
+        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 3, 
+    label.y = "bottom"
+  ) +
+  # some visuals 
+  coord_equal(xlim = c(-170, 750),
+              ylim = c(-170, 750)) +
+  facet_grid(stability ~ height) +
+  scale_color_manual(
+    name = "Condition",
+    values = c("Day" = "orange",
+               "Night" = "blue")
+  ) +
+  labs(y = "H [Wm2]", 
+       x = "H [Wm2] 30m Ecosystem station",
+       title = "day, night, stability") +
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+  )
+
+#### u*, stability, heights ####
+sonic_profile_data %>%
+  left_join(
+    Eco_data_30m %>%
+      rename(H_Wm2_Eco = H_Wm2) %>%
+      select(datetime, H_Wm2_Eco),
+    by = "datetime"
+  ) %>%
+  filter(`qc_H_[#]` != 2) %>%
+  # stability classes
+  mutate(
+    stability = case_when(
+      `L_[m]` > 50  ~ "stable (L > 50)",
+      `L_[m]` < -50 ~ "unstable (L < -50)",
+      TRUE          ~ "neutral (abs(L) < 50)"
+    )
+  ) %>%
+  # u* classification
+  mutate(
+    u_star_class = case_when(
+      `u*_[m+1s-1]` <= 0.15 ~ "u* ≤ 0.15",
+      `u*_[m+1s-1]` > 0.15  ~ "u* > 0.15"
+    )
+  ) %>%
+  filter(abs(H_ensemble_mean) < 750) %>%
+  ggplot(aes(x = H_Wm2_Eco, y = H_ensemble_mean)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_abline(slope = 1, intercept = 0,
+              color = "black", linewidth = 1) +
+  # overall regression
+  geom_smooth(method = "lm",
+              color = "darkgrey",
+              linewidth = 1.5) +
+  # + eqn
+  stat_poly_eq(
+    aes(label = paste(after_stat(eq.label),
+                      after_stat(rr.label),
+                      sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 3,
+    color = "black",
+    label.y = 0.05
+  ) +
+  # u* group regressions
+  geom_smooth(aes(color = u_star_class),
+              method = "lm",
+              linewidth = 1.2) +
+  # + eqn
+  stat_poly_eq(
+    aes(color = u_star_class,
+        label = paste(after_stat(eq.label),
+                      after_stat(rr.label),
+                      sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 3,
+  ) +
+  # some visuals
+  coord_equal(xlim = c(-170, 750),
+              ylim = c(-170, 750)) +
+  facet_grid(stability ~ height) +
+  scale_color_manual(
+    name = "u* class",
+    values = c("u* ≤ 0.15" = "red",
+               "u* > 0.15" = "blue")) +
+  labs(
+    y = "H [Wm2]",
+    x = "H [Wm2] 30m Ecosystem station",
+    title = "u* classes + stability"
+  ) +
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)
+  )
+
+
+# compare the heights as time series plot
+# time series plot with all the data processing options 
+# for winter and summer week
+
+#summer week
+height_comp_summer <- sonic_profile_data %>%
+  filter(
+    datetime %in% summer_week
+    ) %>%
+  mutate(`H_[W+1m-2]` = ifelse(`qc_H_[#]` == 2, NA, `H_[W+1m-2]`)) %>%
   ggplot() +
-  geom_line(aes(y = `H_[W+1m-2]`, x = datetime, color = folder)) +
+  geom_line(
+    aes(
+      x = datetime,
+      y = `H_[W+1m-2]`,
+      group = folder,
+      color = factor(as.factor(str_replace(height, pattern = "m", "")))),alpha = 0.6) +
+  scale_color_manual(
+    name = "height", # legend title
+    values = c("30" = "darkgreen",
+               "70" = "blue",
+               "148" = "red"),
+    labels = c("30" = "30 m",
+               "70" = "70 m",
+               "148" = "148 m")) +
+  labs(x = "", y = "H [Wm2]")+
   theme_bw()
 
-height_comp
+# winter week
+height_comp_winter <- sonic_profile_data %>%
+  filter(
+    datetime %in% winter_week
+  ) %>%
+  mutate(`H_[W+1m-2]` = ifelse(`qc_H_[#]` == 2, NA, `H_[W+1m-2]`)) %>%
+  ggplot() +
+  geom_line(
+    aes(
+      x = datetime,
+      y = `H_[W+1m-2]`,
+      group = folder,
+      color = factor(as.factor(str_replace(height, pattern = "m", "")))),alpha = 0.6) +
+  scale_color_manual(
+    name = "height", # legend title
+    values = c("30" = "darkgreen",
+               "70" = "blue",
+               "148" = "red"),
+    labels = c("30" = "30 m",
+               "70" = "70 m",
+               "148" = "148 m")) +
+  labs(x = "", y = "H [Wm2]")+
+  theme_bw()
+
+# combine
+height_comp_winter / height_comp_summer
 
 ### comparison of u_star, L etc from different heights ####
 # calculate ensenble mean value for each height, averaging over the rotation, block etc.
@@ -180,9 +497,6 @@ ggplot(ensemble%>%
        )+
   geom_line(aes(x = datetime, y = L_mean_filtered, color = as.factor(height)))+
   theme_bw()
-
-library(plotly)
-ggplotly(L)
   
 # do corr plot of L etc between different heights
 # data prep
@@ -210,7 +524,6 @@ psych::pairs.panels(log(corr_data))
 # do a log transformationn and it does not look too bad
 
 ##### eddy diffusivity #####
-
 # define a function to get K_H from H (from different heights)
 K_from_H = function(
     Ta_dgC_up, 
@@ -255,7 +568,8 @@ K_from_H = function(
 return(K_H)
 }
 
-K_data = ensemble%>%
+# 
+K_data_30 = ensemble%>%
   left_join(slow_profile_data%>%
               select(Ta_19m, Ta_40m, Ta_55m, Ta_85m, Ta_125m, Ta_148m, datetime), by= "datetime")%>%
   # for 30m height
@@ -267,13 +581,77 @@ K_data = ensemble%>%
     P_ground_hPa = P_ground_hPa, 
     H_Wm2_EC_measured = H_wm2_mean, 
     u_star = u_star_mean
-  ))
+  ))%>%
+  mutate(
+    delta_Ta_30 = Ta_40m-Ta_19m
+  )
 
-ggplot(K_data)+
-  geom_line(aes(x = datetime, y = K_30m))
+K_data_70 = ensemble%>%
+  left_join(slow_profile_data%>%
+              select(Ta_19m, Ta_40m, Ta_55m, Ta_85m, Ta_125m, Ta_148m, datetime), by= "datetime")%>%
+  # for 70m height
+  filter(height == 70)%>%
+  mutate(K_70m = K_from_H(
+    Ta_dgC_up = Ta_85m, 
+    Ta_dgC_down = Ta_55m, 
+    height_diff_m = 20, 
+    P_ground_hPa = P_ground_hPa, 
+    H_Wm2_EC_measured = H_wm2_mean, 
+    u_star = u_star_mean
+  ))%>%
+  mutate(
+    delta_Ta_70 = Ta_85m-Ta_55m
+  )
+
+K_data_148 = ensemble%>%
+  left_join(slow_profile_data%>%
+              select(Ta_19m, Ta_40m, Ta_55m, Ta_85m, Ta_125m, Ta_148m, datetime), by= "datetime")%>%
+  # for 148m height
+  filter(height == 148)%>%
+  mutate(K_148m = K_from_H(
+    Ta_dgC_up = Ta_148m, 
+    Ta_dgC_down = Ta_125m, 
+    height_diff_m = 23, 
+    P_ground_hPa = P_ground_hPa, 
+    H_Wm2_EC_measured = H_wm2_mean, 
+    u_star = u_star_mean
+  ))%>%
+  mutate(
+    delta_Ta_30 = Ta_148m-Ta_125m
+  )
+
+#plot the gradients - all together
+grad = K_data_30%>%
+  filter(datetime %in% winter_week)%>%
+  ggplot()+
+  #geom_line(aes(x = datetime, y = K_30m))+
+  geom_line(aes(x = datetime, y = K_30m), col = "red")+
+  geom_line(aes(x = datetime, y = delta_Ta_30), col = "blue")+
+  labs(y = "delta Ta (40-19)", x = "")+
+  theme_bw()
+
+ggplotly(grad)
+
+# calculate K from u_star (for the neutral case)
+K = K_data%>%
+  mutate(K_neutral = 0.4*u_star_mean * (30-12.6))%>%
+  ggplot()+
+  geom_line(aes(x = datetime, y = K_30m))+
+  geom_line(aes(x = datetime, y = K_neutral), col = "red")
+
+ggplotly(K)
   
 
 
+
+
+
+  
+
+
+
+
+#### plot mean diurnal cycle of z-d/L
 ensemble%>%
   filter(abs(H_wm2_mean) < 800 )%>%
   filter(abs(z_d_L_mean) < 200)%>%
