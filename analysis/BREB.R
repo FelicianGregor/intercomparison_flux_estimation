@@ -89,7 +89,12 @@ BREB_data_tuning = slow_profile_data%>%
   rename(
     LE_Wm2_Eco = LE_Wm2, 
     H_Wm2_Eco = H_Wm2
-  )
+  )%>%
+  # apply some filters to have a look how this effects the results
+  filter(between(datetime,
+                        as.POSIXct("2021-04-01 01:00:00", tz = "UTC"),
+                        as.POSIXct("2021-09-01 01:00:00", tz = "UTC")))%>%
+  filter(R_Net_Wm2 > 0)
 
 # select only needed vars
 BREB_data_tuning = BREB_data_tuning %>%
@@ -322,8 +327,8 @@ for(i in 1:3){
 
 plot = result %>%
   filter(between(datetime,
-                 as.POSIXct("2021-12-07 01:00:00", tz = "UTC"),
-                 as.POSIXct("2021-12-14 01:00:00", tz = "UTC"))) %>%
+                 as.POSIXct("2021-08-07 01:00:00", tz = "UTC"),
+                 as.POSIXct("2021-08-14 01:00:00", tz = "UTC"))) %>%
   ggplot() +
   geom_line(aes(x = datetime, y = LE_19_40), color = "darkred") +
   geom_line(aes(x = datetime, y = LE_Wm2_truth), color = "black")

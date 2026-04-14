@@ -56,7 +56,7 @@ K_theory = function(
   
   ######### K-approach sensible and latent heat calculation #########
   #latent heat:
-  K_H = K_H = - H_Wm2_EC_measured / (rho * c_p * (delta_Ta_dgC / height_diff_m))
+  K_H = - H_Wm2_EC_measured / (rho * c_p * (delta_Ta_dgC / height_diff_m))
   H_Wm2_K_theory = - c_p * rho* K_H * (delta_Ta_dgC/height_diff_m)
   LE_Wm2_K_theory = - lambda * rho * K_H * (delta_q_kg_kg/height_diff_m)
   
