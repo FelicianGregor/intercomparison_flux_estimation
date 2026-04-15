@@ -12,6 +12,7 @@ K_theory = function(
                 P_ground_hPa, 
                 H_Wm2_EC_measured,
                 u_star, 
+                R_Net_Wm2, 
                 type = c("latent", "sensible")
 ){
   
@@ -65,7 +66,9 @@ K_theory = function(
   #filtering based on u*
   LE_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = LE_Wm2_K_theory)
   H_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = H_Wm2_K_theory)
-  
+  #filtering based on R_net: Flux cannot be higher than incoming radiation
+  LE_Wm2_K_theory = ifelse(abs(LE_Wm2_K_theory) > abs(R_Net_Wm2),yes = NA, no = LE_Wm2_K_theory)
+  H_Wm2_K_theory = ifelse(abs(H_Wm2_K_theory) > abs(R_Net_Wm2), NA,H_Wm2_K_theory)
   
   # return sensible heat as default
   if (type == "latent") {
@@ -88,11 +91,15 @@ H_sonic_30m = sonic_profile_data%>%
   rename(H_EC_measured_sonic_30m = `H_[W+1m-2]`, 
          u_star = `u*_[m+1s-1]`)
   
-# join in profle dataset
+# join in profile dataset
 slow_profile_data = slow_profile_data%>%
   left_join(H_sonic_30m, by = "datetime")%>%
   left_join(Eco_data_30m%>%select(datetime, P_ground_hPa, LE_Wm2), by = "datetime")%>%
   rename(LE_Wm2_Eco = LE_Wm2)
+
+#join Ecosystem station data for the net radiation measurements
+slow_profile_data = slow_profile_data%>%
+  left_join(Eco_data_30m%>%select(datetime, R_Net_Wm2), by = "datetime")
 
 # apply the function for LE
 slow_profile_data$LE_Wm2_K_theory = K_theory(H2O_mmol_mol_up = slow_profile_data$H2O_55m, 
@@ -103,8 +110,8 @@ slow_profile_data$LE_Wm2_K_theory = K_theory(H2O_mmol_mol_up = slow_profile_data
                     P_ground_hPa = slow_profile_data$P_ground_hPa, 
                     H_Wm2_EC_measured = slow_profile_data$H_EC_measured_sonic_30m,
                     u_star = slow_profile_data$u_star,
-                    type = "latent"
-)
+                    R_Net_Wm2 = slow_profile_data$R_Net_Wm2, 
+                    type = "latent")
 
 # plot and compare
 slow_profile_data %>%
@@ -128,6 +135,7 @@ slow_profile_data$H_Wm2_K_theory = K_theory(
   P_ground_hPa = slow_profile_data$P_ground_hPa, 
   H_Wm2_EC_measured = slow_profile_data$H_EC_measured_sonic_30m,
   u_star = slow_profile_data$u_star,
+  R_Net_Wm2 = slow_profile_data$R_Net_Wm2,
   type = "sensible"
 )
 
@@ -177,7 +185,7 @@ K_data_tuning = slow_profile_data%>%
 K_data_tuning = K_data_tuning %>%
   select(-contains('qc')) %>%
   select(matches("^(Ta|H2O)_[0-9]{1,3}m$"), 
-         datetime, P_ground_hPa, H_Wm2_Eco, LE_Wm2_Eco, H_EC_measured_sonic_30m, u_star)
+         datetime, P_ground_hPa, H_Wm2_Eco, LE_Wm2_Eco, H_EC_measured_sonic_30m, u_star, R_Net_Wm2)
 
 
 #####begin the heights tuning####
@@ -192,7 +200,8 @@ result = data.frame(datetime = K_data_tuning$datetime,
                     LE_Wm2_Eco = K_data_tuning$LE_Wm2_Eco, 
                     H_Wm2_Eco = K_data_tuning$H_Wm2_Eco, 
                     H_EC_measured_sonic_30m = K_data_tuning$H_EC_measured_sonic_30m, 
-                    u_star = K_data_tuning$u_star)
+                    u_star = K_data_tuning$u_star, 
+                    R_Net_Wm2 = K_data_tuning$R_Net_Wm2)
 rmse_mean = c()
 rmse_H = c()
 rmse_LE = c()
@@ -216,6 +225,7 @@ for(i in 1:length(pairs)){
       P_ground_hPa = K_data_tuning$P_ground_hPa, 
       H_Wm2_EC_measured = K_data_tuning$H_EC_measured_sonic_30m,
       u_star = K_data_tuning$u_star, 
+      R_Net_Wm2 = K_data_tuning$R_Net_Wm2, 
       type = "sensible"
     )
   
@@ -231,6 +241,7 @@ for(i in 1:length(pairs)){
       P_ground_hPa = K_data_tuning$P_ground_hPa, 
       H_Wm2_EC_measured = K_data_tuning$H_EC_measured_sonic_30m,
       u_star = K_data_tuning$u_star, 
+      R_Net_Wm2 = K_data_tuning$R_Net_Wm2, 
       type = "latent"
     )
   

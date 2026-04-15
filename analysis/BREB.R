@@ -65,6 +65,10 @@ BREB = function(H2O_mmol_mol_up,
   H_Wm2_BREB  = if_else(valid, true  = H_Wm2_BREB, false = NA)
   LE_Wm2_BREB = if_else(valid, true = LE_Wm2_BREB, false = NA)
   
+  #filtering based on R_net: Flux cannot be higher than incoming radiation
+  LE_Wm2_K_theory = ifelse(abs(LE_Wm2_BREB) > abs(R_net_Wm2),yes = NA, no = LE_Wm2_BREB)
+  H_Wm2_K_theory = ifelse(abs(H_Wm2_BREB) > abs(R_net_Wm2), NA,H_Wm2_BREB)
+  
   
   # return sensible heat as default
   if (type == "latent") {
@@ -330,7 +334,7 @@ plot = result %>%
                  as.POSIXct("2021-08-07 01:00:00", tz = "UTC"),
                  as.POSIXct("2021-08-14 01:00:00", tz = "UTC"))) %>%
   ggplot() +
-  geom_line(aes(x = datetime, y = LE_19_40), color = "darkred") +
+  geom_line(aes(x = datetime, y = LE_19_55), color = "darkred") +
   geom_line(aes(x = datetime, y = LE_Wm2_truth), color = "black")
 
 plot
