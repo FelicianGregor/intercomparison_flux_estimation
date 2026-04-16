@@ -217,7 +217,7 @@ sonic_profile_data%>%
     aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
-    size = 3,
+    size = 4,
     color = "black"
   ) +
   # day/night regressions
@@ -230,7 +230,7 @@ sonic_profile_data%>%
         label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
-    size = 3, 
+    size = 4, 
     label.y = "bottom"
   ) +
   # some visuals 
@@ -285,7 +285,7 @@ sonic_profile_data %>%
                       sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
-    size = 3,
+    size = 4,
     color = "black",
     label.y = 0.05
   ) +
@@ -301,7 +301,7 @@ sonic_profile_data %>%
                       sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
-    size = 3,
+    size = 4,
   ) +
   # some visuals
   coord_equal(xlim = c(-170, 750),
@@ -601,7 +601,7 @@ K_from_H = function(
   
   ######### K-approach: use sensile heat flux to obtain K (eddy diffusivity) #########
   #latent heat:
-  K_H = - H_Wm2_EC_measured / (rho * c_p * (delta_Ta_dgC / height_diff_m))
+  K_H =  - H_Wm2_EC_measured / (rho * c_p * (delta_Ta_dgC / height_diff_m))
   
   
   ######### additional filtering criteria?? #########
@@ -677,11 +677,11 @@ grad = K_data_30%>%
 #ggplotly(grad)
 
 # calculate K from u_star (for the neutral case)
-K = K_data%>%
-  mutate(K_neutral = 0.4*u_star_mean * (30-12.6))%>%
-  ggplot()+
-  geom_line(aes(x = datetime, y = K_30m))+
-  geom_line(aes(x = datetime, y = K_neutral), col = "red")
+#K = K_data%>%
+#  mutate(K_neutral = 0.4*u_star_mean * (30-12.6))%>%
+#  ggplot()+
+#  geom_line(aes(x = datetime, y = K_30m))+
+#  geom_line(aes(x = datetime, y = K_neutral), col = "red")
 
 #ggplotly(K)
 
@@ -803,11 +803,12 @@ K_winter / grad_winter / u_star_winter / L_winter
 K_summer / grad_summer / u_star_summer / L_summer
 
  
+#### calculate the fluxes ####
 
 
 
 
-#### plot mean diurnal cycle of z-d/L
+#### plot mean diurnal cycle of z-d/L ####
 ensemble%>%
   filter(abs(H_wm2_mean) < 800 )%>%
   filter(abs(z_d_L_mean) < 200)%>%
@@ -833,8 +834,173 @@ ensemble%>%
   facet_wrap(~month, ncol = 4, nrow = 3)
 
 
-##### gradients #####
+##### explore filtering of BREB and K-theory fluxes with u* and stability, day and night time ####
 
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData") # load the 14 level profile data for Ta and Humidity
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_K_theory.RData") # load K theory results
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_BREB.RData") # load BREB results
+
+# get mean of ensemle
+ensemble_K_BREB = sonic_profile_data%>%
+  filter(height == "30m")%>%
+  #filter(`qc_H_[#]` != 2)%>%
+  group_by(datetime)%>%
+  summarise(
+    u_star_mean = mean(`u*_[m+1s-1]`), 
+    L_mean = mean(`L_[m]`), 
+    TKE_mean = mean(`TKE_[m+2s-2]`),
+    H_wm2_mean = mean(`H_[W+1m-2]`), 
+    z_d_L_mean = mean(`(z-d)/L_[#]`),
+    daytime = mean(`daytime_[1=daytime]`), 
+    .groups = 'drop' # drop the grouping by datetime and height
+  )
+
+# add BREB and K data
+ensemble_K_BREB = ensemble_K_BREB%>%
+  left_join(
+    BREB %>% select(H_19_40_BREB, LE_19_40_BREB, datetime, LE_Wm2_truth, H_Wm2_truth), 
+    by = "datetime"
+  )%>%
+  left_join(
+    K_theory, 
+    by = "datetime"
+  )
+
+# make daytime and stability column
+ensemble_K_BREB = ensemble_K_BREB%>%
+  # stability
+  mutate(
+    stability = case_when(
+      L_mean > 50  ~ "stable (L > 50)",
+      L_mean < -50 ~ "unstable (L < -50)",
+      TRUE          ~ "neutral (abs(L) < 50)"))%>%
+  # daytime
+  mutate(
+    day_night = factor(daytime,
+                       levels = c(0, 1),
+                       labels = c("Night", "Day"))
+  )
+
+# bring data in right format for plotting
+ensemble_long = ensemble_K_BREB %>%
+  pivot_longer(
+    cols = c(H_19_40_BREB, LE_19_40_BREB,
+             H_24_55_K,   LE_24_55_K),
+    
+    names_to = c("flux_type", "height", "model"),
+    names_pattern = "(H|LE)_(.*)_(BREB|K)",
+    
+    values_to = "flux_value"
+  )
+
+obs_long = ensemble_K_BREB %>%
+  pivot_longer(
+    cols = c(H_Wm2_Eco, LE_Wm2_Eco),
+    names_to = "flux_type",
+    names_pattern = "(H|LE)_Wm2_Eco",
+    values_to = "flux_obs"
+  ) %>%
+  mutate(
+    height = NA,
+    model = "EC"
+  )
+
+# join both:
+ensemble_long = ensemble_long %>%
+  left_join(
+    obs_long %>% select(datetime, flux_type, flux_obs),
+    by = c("datetime", "flux_type")
+  )%>%
+  filter(!is.na(day_night))
+
+# plot altogether for BREB
+BREB = ensemble_long %>%
+  filter(model == "BREB") %>%
+  ggplot(aes(x = flux_obs, y = flux_value)) +
+  geom_point(alpha = 0.6, size = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "black") +
+  # stability-specific regression lines
+  geom_smooth(aes(color = stability), method = "lm", se = FALSE) +
+  # overall regression 
+  geom_smooth(
+    aes(group = 1),
+    method = "lm",
+    se = FALSE,
+    color = "black",
+    linewidth = 1
+  ) +
+  # stability-specific equations
+  stat_poly_eq(
+    aes(color = stability,
+        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 5
+  ) +
+  #equation
+  stat_poly_eq(
+    aes(group = 1,
+        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    color = "black",
+    size = 5, label.y = 0.05
+  ) +
+  coord_equal(xlim = c(-170, 750),
+              ylim = c(-170, 750)) +
+  labs(y = "H [Wm2]", x = "H [Wm2] Eco", title = "BREB")+
+  facet_grid(day_night ~ flux_type) +
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
+  )
+
+
+# plot altogether for K
+K = ensemble_long %>%
+  filter(model == "K") %>%
+  ggplot(aes(x = flux_obs, y = flux_value)) +
+  geom_point(alpha = 0.6, size = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "black") +
+  # stability-specific regression lines
+  geom_smooth(aes(color = stability), method = "lm", se = FALSE) +
+  # overall regression 
+  geom_smooth(
+    aes(group = 1),
+    method = "lm",
+    se = FALSE,
+    color = "black",
+    linewidth = 1
+  ) +
+  # stability-specific equations
+  stat_poly_eq(
+    aes(color = stability,
+        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 5
+  ) +
+  #equation
+  stat_poly_eq(
+    aes(group = 1,
+        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    color = "black",
+    size = 5, label.y = 0.05
+  ) +
+  coord_equal(xlim = c(-170, 750),
+              ylim = c(-170, 750)) +
+  facet_grid(day_night ~ flux_type) +
+  labs(y = "H [Wm2]", x = "H [Wm2] Eco", title = "K-theory")+
+  theme_classic() +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
+    strip.background = element_rect(fill = NA, color = 'black', linewidth = 0.5)
+  )
+
+K + BREB
 
 
   
