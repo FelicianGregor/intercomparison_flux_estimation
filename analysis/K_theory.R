@@ -25,22 +25,21 @@ K_theory = function(
   # convert from mmol/mol to kg/kg
   H2O_kg_kg_down = H2O_mmol_mol_down / 1000 * 0.622
   H2O_kg_kg_up = H2O_mmol_mol_up / 1000 * 0.622
+  delta_q_kg_kg = H2O_kg_kg_up - H2O_kg_kg_down 
   
-  # calculate e in hPa
+  # calculate delta e to do the filtering: Foken Micrometeorology 2024, page 171
+  # calculate e in hPa first
   e_hPa_up = (P_ground_hPa * H2O_kg_kg_up) / 0.622 
   e_hPa_down  = (P_ground_hPa * H2O_kg_kg_down) / 0.622
-  
-  # obtain specific humidity q from e (following Foken Micrometeorology 2012, page 41)
-  q_kg_kg_up = 0.622 * (e_hPa_up/(P_ground_hPa-0.378*e_hPa_up))
-  q_kg_kg_down = 0.622 * (e_hPa_down/(P_ground_hPa-0.378*e_hPa_down))
-  
-  # delta e
-  delta_q_kg_kg =q_kg_kg_up - q_kg_kg_down 
+  delta_e_hPa = e_hPa_up-e_hPa_down
+
+  #filter
+  delta_q_kg_kg = ifelse(abs(delta_e_hPa)<0.5, yes = NA, no = delta_q_kg_kg)
   
   # calculate delta T
   delta_Ta_dgC = Ta_dgC_up - Ta_dgC_down
   # filter Ta difference by minimal difference
-  threshold = 0.1 # K
+  threshold = 0.1 # in K
   delta_Ta_dgC = ifelse(abs(delta_Ta_dgC) > threshold, 
                     yes = delta_Ta_dgC, 
                     no = NA)
