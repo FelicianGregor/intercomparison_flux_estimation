@@ -18,18 +18,21 @@ BREB = function(H2O_mmol_mol_up,
   H2O_kg_kg_down = H2O_mmol_mol_down / 1000 * 0.622
   H2O_kg_kg_up = H2O_mmol_mol_up / 1000 * 0.622
   
-  # calculate e in hPa
-  e_hPa_up = (P_ground_hPa * H2O_kg_kg_up) / 0.622 
-  e_hPa_down  = (P_ground_hPa * H2O_kg_kg_down) / 0.622
-  
-  # delta e
-  delta_e_hPa = e_hPa_up - e_hPa_down 
+  # calculate delta q
+  delta_q_kg_kg = H2O_kg_kg_up - H2O_kg_kg_down
   
   # calculate delta T
   delta_Ta_dgC = Ta_dgC_up - Ta_dgC_down
   
+  # latent heat of vaporization is temperature dependent, use Foken 2012 Micrometeorology, page 38
+  # use uppermost T as variable, although one could also use the mean (I could implement this later)
+  lambda = 2500827-2360*Ta_dgC_up # in J/Kg
+  
+  # specific heat capacity of air
+  c_p = 1004.834 # specific heat of air at constant pressure 
+  
   ######### BREB sensible and latent heat calculation #########
-  Bowen_ratio = 0.667 * (delta_Ta_dgC/delta_e_hPa)
+  Bowen_ratio = (c_p/lambda)* (delta_Ta_dgC/delta_q_kg_kg)
   H_Wm2_BREB = (R_net_Wm2-G_Wm2)*((Bowen_ratio)/(1+Bowen_ratio))
   LE_Wm2_BREB = (R_net_Wm2 - G_Wm2)/(1+Bowen_ratio)
   
@@ -45,13 +48,15 @@ BREB = function(H2O_mmol_mol_up,
   
   ######### additional filtering criteria based on Ohmura 1982 #########
   # calculate delta q in kg/kg
+  # calculate e in hPa
+  e_hPa_up = (P_ground_hPa * H2O_kg_kg_up) / 0.622 
+  e_hPa_down  = (P_ground_hPa * H2O_kg_kg_down) / 0.622
+  # delta e
+  delta_e_hPa = e_hPa_up - e_hPa_down 
+  
   q_up_kg_kg = 0.622*((e_hPa_up)/(P_ground_hPa-0.378*e_hPa_up)) 
   q_down_kg_kg = 0.622*((e_hPa_down)/(P_ground_hPa-0.378*e_hPa_down))
   delta_q_kg_kg = q_up_kg_kg - q_down_kg_kg
-  
-  # set some variables
-  lambda = 2.25e6 #in Joule per kg (although in reality dependent on T!)
-  c_p = 1005 #J/kg*K
   
   valid =
     # one direction: both larger 0: >
@@ -74,6 +79,9 @@ BREB = function(H2O_mmol_mol_up,
 }
 
 ##### prepare the data #####
+library(tidyverse)
+library(ggpmisc)
+
 # load data
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData") # EC data output from different heights
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/slow_profile_data.RData") # load the 14 level profile data for Ta and Humidity

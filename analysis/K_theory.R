@@ -32,14 +32,16 @@ K_theory = function(
   e_hPa_up = (P_ground_hPa * H2O_kg_kg_up) / 0.622 
   e_hPa_down  = (P_ground_hPa * H2O_kg_kg_down) / 0.622
   delta_e_hPa = e_hPa_up-e_hPa_down
+  
+  hist(delta_e_hPa, xlim = c(-2, 1.75))
 
   #filter
-  delta_q_kg_kg = ifelse(abs(delta_e_hPa)<0.5, yes = NA, no = delta_q_kg_kg)
+  delta_q_kg_kg = ifelse(abs(delta_e_hPa)<0.2, yes = NA, no = delta_q_kg_kg)
   
   # calculate delta T
   delta_Ta_dgC = Ta_dgC_up - Ta_dgC_down
   # filter Ta difference by minimal difference
-  threshold = 0.1 # in K
+  threshold = 0.2 # in K
   delta_Ta_dgC = ifelse(abs(delta_Ta_dgC) > threshold, 
                     yes = delta_Ta_dgC, 
                     no = NA)
@@ -130,7 +132,7 @@ slow_profile_data %>%
   ) +
   ylab("LE K-theory [Wm2]") +
   xlab("LE EC measured 30m Eco [Wm2]") +
-  coord_cartesian(xlim = c(-500, 1250), ylim = c(-500, 1250))+
+  coord_cartesian(xlim = c(-100, 500), ylim = c(-100, 500))+
   theme_bw()
   
 
@@ -147,7 +149,7 @@ slow_profile_data$H_Wm2_K_theory = K_theory(
   R_Net_Wm2 = slow_profile_data$R_Net_Wm2, 
   type = "sensible")
 
-slow_profile_data %>%
+H = slow_profile_data %>%
   #filter(LE_Wm2_K_theory > -700 & LE_Wm2_K_theory < 700) %>%
   ggplot(aes(x = H_Wm2_Eco, y = H_Wm2_K_theory)) +
   geom_point(size = 0.6, alpha = 0.6) +
@@ -162,8 +164,10 @@ slow_profile_data %>%
   ) +
   ylab("H K-theory [Wm2]") +
   xlab("H EC measured 30m Eco [Wm2]") +
-  coord_cartesian(xlim = c(-500, 1250), ylim = c(-500, 1250))+
+  coord_cartesian(xlim = c(-100, 600), ylim = c(-100, 600))+
   theme_bw()
+
+H
     
 
 
