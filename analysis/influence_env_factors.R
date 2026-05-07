@@ -17,7 +17,7 @@ zeta = sonic_profile_data%>%
 
 impact_df = left_join(impact_df, zeta, by = "datetime")
 
-# stability classification based on Sorbjan and Grachev 2010: “An Evaluation of the FluxGradient Relationship in the Stable Boundary Laye
+# stability classification based on Sorbjan and Grachev 2010: “An Evaluation of the FluxGradient Relationship in the Stable Boundary Layer
 classify_stability <- function(zeta) {
   ifelse(is.na(zeta), NA,
          ifelse(zeta < -1, "xu",
@@ -51,17 +51,17 @@ impact_df = impact_df%>%
 
 # prepare plotting
 impact_df = impact_df %>%
-  rename(H_Wm2_K = H_19_40_K, 
-         H_Wm2_BREB = H_19_40_BREB, 
-         LE_Wm2_BREB  = LE_19_40_BREB, 
-         LE_Wm2_K = LE_19_40_K)%>%
+  rename("MBR H" = H_19_40_K, 
+         "BREB H" = H_19_40_BREB, 
+         "BREB LE"  = LE_19_40_BREB, 
+         "MBR LE" = LE_19_40_K)%>%
   pivot_longer(
-    cols = c(H_Wm2_K, LE_Wm2_K, LE_Wm2_BREB, H_Wm2_BREB), 
+    cols = c("MBR H", "BREB H", "BREB LE", "MBR LE"), 
     names_to = "flux_type", 
     values_to = "flux_value"
   ) %>%
   mutate(
-    Eco_data = ifelse(flux_type == "H_Wm2_K" | flux_type == "H_Wm2_BREB", 
+    Eco_data = ifelse(flux_type == "MBR H" | flux_type == "BREB H", 
                       yes = H_Wm2_Eco, 
                       no = LE_Wm2_Eco))
 
@@ -84,18 +84,41 @@ impact_df%>%
 
 
 ### look at u_star effects
-impact_df%>%
-  filter(between(datetime, 
-                 as.POSIXct("2021-07-01 01:00:00", tz = "UTC"),
-                 as.POSIXct("2021-08-07 01:00:00", tz = "UTC")))%>%
-  pivot_longer(cols = c(H_24_55_K, LE_24_55_K, LE_19_40_BREB, H_19_40_BREB), 
-               names_to = "flux_type", 
-               values_to = "flux_value")%>%
-  ggplot(aes(x = u_star, y = flux_value))+
+# create filer function first:
+classify_u_star = function(u_star){
+  ifelse(is.na(u_star), NA, 
+         ifelse(u_star<0.2, "0-0.2", 
+                ifelse(u_star<0.4, "0.2-0.4", 
+                       ifelse(u_star<0.6, "0.4-0.6", 
+                              ">0.6"))))
+}
+
+u_star_plot = impact_df%>%
+  mutate(u_star_class = classify_u_star(u_star))%>%
+  ggplot(aes(x = Eco_data, y = flux_value)) +
   geom_point(size = 0.4, alpha = 0.3) +
-  geom_smooth( method = "loess", linewidth = 1, color = "red") +
-  facet_wrap(~flux_type, ncol = 2, nrow = 2)+
+  geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1.5) +
+  geom_smooth(aes(color = u_star_class), method = "lm", linewidth = 1) +
+  stat_poly_eq(
+    aes(color = u_star_class,
+        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 3
+  )+
+  coord_cartesian(xlim = c(-300, 900), ylim = c(-300, 900)) +
+  facet_wrap(~flux_type, ncol = 2, nrow = 2) +
+  labs(y = "Turbulent flux [W/m2]",
+       x = "Reference flux ICOS Ecosystem station [W/m2]", 
+       color = "u* class")+
   theme_bw()
+
+ggsave(
+  filename = "C:/Users/Lenovo/Downloads/u_star_plot.png",
+  plot = u_star_plot,
+  width = 21, height = 18, units = "cm",
+  dpi = 300
+)
 
 ### Attention ###
 # doing the quality control and then investigating the effects of different parameters can trick me!
