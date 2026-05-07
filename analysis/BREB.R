@@ -47,21 +47,11 @@ BREB = function(H2O_mmol_mol_up,
                        no = LE_Wm2_BREB)
   
   ######### additional filtering criteria based on Ohmura 1982 #########
-  # calculate delta q in kg/kg
-  # calculate e in hPa
-  e_hPa_up = (P_ground_hPa * H2O_kg_kg_up) / 0.622 
-  e_hPa_down  = (P_ground_hPa * H2O_kg_kg_down) / 0.622
-  # delta e
-  delta_e_hPa = e_hPa_up - e_hPa_down 
-  
-  q_up_kg_kg = 0.622*((e_hPa_up)/(P_ground_hPa-0.378*e_hPa_up)) 
-  q_down_kg_kg = 0.622*((e_hPa_down)/(P_ground_hPa-0.378*e_hPa_down))
-  delta_q_kg_kg = q_up_kg_kg - q_down_kg_kg
-  
   valid =
     # one direction: both larger 0: >
     ((-R_net_Wm2 - G_Wm2) > 0 
      & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) > 0) | # or
+    
     # now other direction <
     ((-R_net_Wm2 - G_Wm2) < 0 
      & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) < 0)
@@ -134,7 +124,7 @@ BREB_data = BREB_data%>%
     ))
 
 # plot H from BREB
-BREB_data %>%
+H_BREB = BREB_data %>%
   ggplot(aes(x = H_Wm2_Eco, y = H_Wm2_BREB)) +
   geom_point(size = 0.6, alpha = 0.6) +
   geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1) +
@@ -144,15 +134,17 @@ BREB_data %>%
     aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
-    size = 3
+    size = 4
   ) +
-  ylab("H BREB [Wm2]") +
-  xlab("H EC measured 30m Eco [Wm2]") +
-  coord_cartesian(xlim = c(-200, 700), ylim = c(-200, 700))+
+  ylab(expression("H BREB system ["*W~m^{-2}*"]")) +
+  xlab(expression("LE EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
+  coord_cartesian(xlim = c(-300, 850), ylim = c(-300, 850))+
   theme_bw()
 
+H_BREB
+
 # plot LE from BREB
-BREB_data %>%
+LE_BREB = BREB_data %>%
   ggplot(aes(x = LE_Wm2_Eco, y = LE_Wm2_BREB)) +
   geom_point(size = 0.6, alpha = 0.6) +
   geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1) +
@@ -162,12 +154,23 @@ BREB_data %>%
     aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
-    size = 3
+    size = 4
   ) +
-  ylab("LE BREB [Wm2]") +
-  xlab("LE EC measured 30m Eco [Wm2]") +
+  ylab(expression("LE BREB system ["*W~m^{-2}*"]")) +
+  xlab(expression("LE EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
   coord_cartesian(xlim = c(-200, 600), ylim = c(-200, 600))+
   theme_bw()
+
+LE_BREB
+
+#save plots:
+# save as png
+ggsave(
+  filename = "C:/Users/Lenovo/Downloads/BREB_result_overall.pdf",
+  plot = H_BREB + LE_BREB,
+  width = 21, height = 11, units = "cm",
+  dpi = 300
+)
 
 # save the result to use later during analysis
 BREB = BREB_data%>%
@@ -181,3 +184,22 @@ BREB = BREB_data%>%
 
 # save
 save(x = BREB, file = "data/processed/fluxes_BREB.RData")
+
+
+
+##### check the time issues:
+
+BREB_data%>%
+  filter(datetime > "2021-06-23 00:0:00 UTC" & datetime < "2021-06-25 00:00:00 UTC")%>%
+  ggplot()+
+  geom_line(aes(x = datetime, y = H_Wm2_BREB), color = "red")+
+  geom_line(aes(x = datetime, y =  H_Wm2_Eco), color = "darkgreen")+
+  geom_vline(
+    xintercept = as.POSIXct("2021-06-23 17:30:00 UTC"),
+    color = "black"
+  ) +
+  theme_classic()
+
+range(Eco_data_30m$datetime)
+range(slow_profile_data$datetime)
+range(BREB_data$datetime)

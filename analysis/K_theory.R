@@ -68,8 +68,8 @@ K_theory = function(
   
   ######### additional filtering criteria?? #########
   #filtering based on u*
-  LE_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = LE_Wm2_K_theory)
-  H_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = H_Wm2_K_theory)
+  #LE_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = LE_Wm2_K_theory)
+  #H_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = H_Wm2_K_theory)
   
   
   # return sensible heat as default
@@ -117,7 +117,7 @@ slow_profile_data$LE_Wm2_K_theory = K_theory(H2O_mmol_mol_up = slow_profile_data
                     type = "latent")
 
 # plot and compare
-slow_profile_data %>%
+LE_MBR = slow_profile_data %>%
   #filter(LE_Wm2_K_theory > -700 & LE_Wm2_K_theory < 700) %>%
   ggplot(aes(x = LE_Wm2_Eco, y = LE_Wm2_K_theory)) +
   geom_point(size = 0.6, alpha = 0.6) +
@@ -126,15 +126,16 @@ slow_profile_data %>%
   # Add equation and R2
   stat_poly_eq(
     aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
-    formula = y ~ x,
+    formula = y ~ x, 
     parse = TRUE,
-    size = 3
+    size = 4
   ) +
-  ylab("LE K-theory [Wm2]") +
-  xlab("LE EC measured 30m Eco [Wm2]") +
-  coord_cartesian(xlim = c(-100, 500), ylim = c(-100, 500))+
+  ylab(expression("LE MBR system ["*W~m^{-2}*"]")) + 
+  xlab(expression("LE EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
+  coord_cartesian(xlim = c(-150, 500), ylim = c(-150, 500))+
   theme_bw()
-  
+
+LE_MBR 
 
 # just to double check, but calculating H this way does not make sense, results are exactly similar to measured ones
 slow_profile_data$H_Wm2_K_theory = K_theory(
@@ -149,7 +150,7 @@ slow_profile_data$H_Wm2_K_theory = K_theory(
   R_Net_Wm2 = slow_profile_data$R_Net_Wm2, 
   type = "sensible")
 
-H = slow_profile_data %>%
+H_MBR = slow_profile_data %>%
   #filter(LE_Wm2_K_theory > -700 & LE_Wm2_K_theory < 700) %>%
   ggplot(aes(x = H_Wm2_Eco, y = H_Wm2_K_theory)) +
   geom_point(size = 0.6, alpha = 0.6) +
@@ -160,15 +161,24 @@ H = slow_profile_data %>%
     aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
-    size = 3
+    size = 4
   ) +
-  ylab("H K-theory [Wm2]") +
-  xlab("H EC measured 30m Eco [Wm2]") +
-  coord_cartesian(xlim = c(-100, 600), ylim = c(-100, 600))+
+  ylab(expression("H MBR system ["*W~m^{-2}*"]")) +
+  xlab(expression("H EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
+  coord_cartesian(xlim = c(-200, 600), ylim = c(-200, 600))+
   theme_bw()
 
-H
-    
+H_MBR
+
+H_MBR + LE_MBR
+
+# save as png
+ggsave(
+  filename = "C:/Users/Lenovo/Downloads/MBR_result_overall.png",
+  plot = H_MBR + LE_MBR,
+  width = 21, height = 11, units = "cm", dpi = 300
+)
+
 
 
 # save the result to use later
@@ -187,3 +197,24 @@ K_theory = slow_profile_data%>%
 save(x = K_theory, file = "data/processed/fluxes_K_theory.RData")
   
 #ggplotly(plot)
+
+
+
+
+
+
+
+
+##### try to fix the time issues 
+
+slow_profile_data %>%
+  filter(datetime > as.POSIXct("2021-08-21 00:00:00 UTC") &
+           datetime < as.POSIXct("2021-08-28 00:00:00 UTC")) %>%
+  ggplot() +
+  geom_line(aes(x = datetime, y = LE_Wm2_K_theory), color = "red") +
+  geom_line(aes(x = datetime, y = LE_Wm2_Eco), color = "darkgreen") +
+  geom_vline(
+    xintercept = as.POSIXct("2021-08-21 15:00:00 UTC"),
+    color = "black"
+  ) +
+  theme_classic()

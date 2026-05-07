@@ -68,6 +68,10 @@ read_full_output <- function(folder_path) {
 # apply to all folders and rowbind
 sonic_profile_data <- map_dfr(folders, read_full_output)
 
+# there is an issue with the time: the sonic data is processed in a way that apparently the datetime refers to the start of the half an hour, and not to the end as it is for the ICOS Ecosystem data
+# therefore: subtract 30min from the datetime object
+sonic_profile_data$datetime = sonic_profile_data$datetime - 30*60
+
 # calculate ensemble mean
 sonic_profile_data = sonic_profile_data%>%
   group_by(height, datetime)%>%
@@ -196,7 +200,26 @@ save(sonic_profile_data, file = "data/processed/sonic_profile_data.Rdata")
 rm(first_part, second_part, sonic_profile_data)
 
 
+### check for time interval issue:
+time_data = sonic_profile_data%>%
+  filter(folder == "2021_30m_triple_block")
 
-  
+time_data = time_data %>%
+  left_join(Eco_data_30m%>%select(datetime, H_Wm2)%>%rename(H_Wm2_Eco = H_Wm2), by = "datetime")
 
+time_data%>%
+  filter(datetime > as.POSIXct("2021-06-21 00:00:00 UTC") &
+           datetime < as.POSIXct("2021-06-28 00:00:00 UTC")) %>%
+  ggplot()+
+  geom_line(aes(x = datetime, y = `H_[W+1m-2]`), color = "red") +
+  geom_line(aes(x = datetime, y = H_Wm2_Eco), color = "darkgreen") +
+  geom_vline(
+    xintercept = as.POSIXct("2021-06-21 15:00:00 UTC"),
+    color = "black"
+  ) +
+  theme_classic()
 
+# range of sonic data:
+range(sonic_profile_data$datetime)
+# range of ecosystem data
+range(Eco_data_30m$datetime)

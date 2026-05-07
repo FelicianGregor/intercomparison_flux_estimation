@@ -15,9 +15,10 @@ H2O_data[, 4:ncol(H2O_data)] = lapply(H2O_data[, 4:ncol(H2O_data)], as.numeric)
 H2O_data = H2O_data[-1, ]
 
 # set dates
-H2O_data = H2O_data %>%
-  mutate(datetime = dmy(date) + seconds(as.numeric(time) * 86400))%>%
-  mutate(datetime = force_tz(datetime, tzone = "UTC"))%>%
+H2O_data <- H2O_data %>%
+  mutate(datetime = dmy(date) + seconds(as.numeric(time) * 86400)) %>% # make datetime object
+  mutate(datetime = force_tz(datetime, tzone = "CET")) %>% # set the tz: is CET, as given in excel table in 2nd row of date column
+  mutate(datetime = with_tz(datetime, tzone = "UTC"))%>% # convert to UTC time.
   # rename h20
   rename(H2O_1m = H2O_1_14_1, 
          H2O_4m = H2O_1_13_1, 
@@ -180,8 +181,8 @@ T_data_plotting <- T_data %>%
 
 T_data_plotting %>%
   filter(between(date(datetime),
-                 ymd("2021-01-21"),
-                 ymd("2021-01-26"))) %>%
+                 ymd("2021-07-01"),
+                 ymd("2021-07-07"))) %>%
   mutate(
     date = date(datetime),
     hour = hour(datetime)

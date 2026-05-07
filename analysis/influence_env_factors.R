@@ -18,7 +18,7 @@ zeta = sonic_profile_data%>%
 impact_df = left_join(impact_df, zeta, by = "datetime")
 
 # stability classification based on Sorbjan and Grachev 2010: “An Evaluation of the FluxGradient Relationship in the Stable Boundary Layer
-classify_stability <- function(zeta) {
+classify_stability_fine <- function(zeta) {
   ifelse(is.na(zeta), NA,
          ifelse(zeta < -1, "xu",
                 ifelse(zeta < -0.6, "vu",
@@ -29,6 +29,12 @@ classify_stability <- function(zeta) {
                                                    ifelse(zeta < 0.6, "s",
                                                           ifelse(zeta < 1, "vs",
                                                                  "xs")))))))))
+}
+classify_stability = function(zeta){
+  ifelse(is.na(zeta), NA,
+         ifelse(zeta < -0.02, "unstable",
+                ifelse(zeta < 0.02, "neutral",
+                       "stable")))
 }
 
 # apply function and get col with stability classes using Sorbjan and Grachev 2010:
@@ -70,9 +76,9 @@ impact_df%>%
   ggplot(aes(x = Eco_data, y = flux_value)) +
   geom_point(size = 0.4, alpha = 0.3) +
   geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1.5) +
-  geom_smooth(aes(color = stability_L), method = "lm", linewidth = 1) +
+  geom_smooth(aes(color = stability_classes), method = "lm", linewidth = 1) +
   stat_poly_eq(
-    aes(color = stability_L,
+    aes(color = stability_classes,
         label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
     formula = y ~ x,
     parse = TRUE,
