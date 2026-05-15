@@ -35,13 +35,13 @@ K_theory = function(
   
   hist(delta_e_hPa, xlim = c(-2, 1.75))
 
-  #filter
+  #filter for minimal e difference
   delta_q_kg_kg = ifelse(abs(delta_e_hPa)<0.2, yes = NA, no = delta_q_kg_kg)
   
   # calculate delta T
   delta_Ta_dgC = Ta_dgC_up - Ta_dgC_down
   # filter Ta difference by minimal difference
-  threshold = 0.2 # in K
+  threshold = 0.15 # in K
   delta_Ta_dgC = ifelse(abs(delta_Ta_dgC) > threshold, 
                     yes = delta_Ta_dgC, 
                     no = NA)
@@ -67,9 +67,15 @@ K_theory = function(
   
   
   ######### additional filtering criteria?? #########
-  #filtering based on u*
-  #LE_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = LE_Wm2_K_theory)
-  #H_Wm2_K_theory = ifelse(u_star < 0.15, yes = NA, no = H_Wm2_K_theory)
+  #filtering based on u*, as suggested by Foken and Mauder 2024, page 168
+  #LE_Wm2_K_theory = ifelse(u_star < 0.07, yes = NA, no = LE_Wm2_K_theory)
+  #H_Wm2_K_theory = ifelse(u_star < 0.07, yes = NA, no = H_Wm2_K_theory)
+  
+  # use filter as done by Billesbach et al. 2024 for MBR method
+  # filter aut based on Bowen ratios
+  #threshold_Bo = 0.2
+  #Bo = (c_p/lambda)* (delta_Ta_dgC/delta_q_kg_kg)
+  #LE_Wm2_K_theory = ifelse(abs(Bo)<0.2, yes = NA, no = LE_Wm2_K_theory)
   
   
   # return sensible heat as default
@@ -86,14 +92,19 @@ load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/slow_profile_data.RData") # load the 14 level profile data for Ta and Humidity
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/Eco_data_30m.RData") # Ecosystem data 30m
 
-# some data prep
+# some data prep for sonic profile data
 H_sonic_30m = sonic_profile_data%>%
   filter(height == "30m" & rotation == "double" & detrending == "block")%>%
   select(datetime, `H_[W+1m-2]`, `u*_[m+1s-1]`)%>% # get the sonic H measured by EC for calculating K
   rename(H_EC_measured_sonic_30m = `H_[W+1m-2]`, 
          u_star = `u*_[m+1s-1]`)
+
+# data prep for slow profile data
+slow_profile_data = slow_profile_data%>%
+  filter(qc_Ta_40m  != 9| qc_H2O_40m != 9 | qc_Ta_19m != 9 , qc_H2O_19m != 9) # quickly filter out data with low quality
+
   
-# join in profile dataset
+# join in sonic profile dataset to slow profile 
 slow_profile_data = slow_profile_data%>%
   left_join(H_sonic_30m, by = "datetime")%>%
   left_join(Eco_data_30m%>%select(datetime, P_ground_hPa, LE_Wm2, H_Wm2), by = "datetime")%>%
@@ -179,8 +190,6 @@ ggsave(
   width = 21, height = 11, units = "cm", dpi = 300
 )
 
-
-
 # save the result to use later
 K_theory = slow_profile_data%>%
   select(datetime, 
@@ -198,23 +207,3 @@ save(x = K_theory, file = "data/processed/fluxes_K_theory.RData")
   
 #ggplotly(plot)
 
-
-
-
-
-
-
-
-##### try to fix the time issues 
-
-slow_profile_data %>%
-  filter(datetime > as.POSIXct("2021-08-21 00:00:00 UTC") &
-           datetime < as.POSIXct("2021-08-28 00:00:00 UTC")) %>%
-  ggplot() +
-  geom_line(aes(x = datetime, y = LE_Wm2_K_theory), color = "red") +
-  geom_line(aes(x = datetime, y = LE_Wm2_Eco), color = "darkgreen") +
-  geom_vline(
-    xintercept = as.POSIXct("2021-08-21 15:00:00 UTC"),
-    color = "black"
-  ) +
-  theme_classic()
