@@ -57,8 +57,15 @@ BREB = function(H2O_mmol_mol_up,
      & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) < 0)
   
   # apply
-  H_Wm2_BREB  = if_else(valid, true  = H_Wm2_BREB, false = NA)
-  LE_Wm2_BREB = if_else(valid, true = LE_Wm2_BREB, false = NA)
+  #H_Wm2_BREB  = if_else(valid, true  = H_Wm2_BREB, false = NA)
+  #LE_Wm2_BREB = if_else(valid, true = LE_Wm2_BREB, false = NA)
+  
+  # filter for physically plausable values
+  # use qc filter also used by Billesbach et al. 2024, but adapted 1000Wm2 used there to 800 (more plausible in temperate forest in Sweden)
+  LE_Wm2_BREB <- ifelse(
+    LE_Wm2_BREB > -200 & LE_Wm2_BREB < 800,
+    yes = LE_Wm2_BREB,
+    no = NA)
   
   # return sensible heat as default
   if (type == "latent") {
@@ -91,7 +98,7 @@ BREB_data = BREB_data %>%
   select(Ta_19m, Ta_40m, qc_Ta_19m, qc_Ta_40m, # Ta data from two heights
          H2O_19m, H2O_40m, qc_H2O_19m, qc_H2O_40m, # H20 data from two heights
          datetime, P_ground_hPa, H_Wm2_Eco, LE_Wm2_Eco, G_Wm2, R_Net_Wm2)%>% # other Ecosystem measurements
-  filter(qc_Ta_40m  != 9| qc_H2O_40m != 9 | qc_Ta_19m != 9 , qc_H2O_19m != 9) # quickly filter 
+  filter(qc_Ta_40m  != 9| qc_H2O_40m != 9 | qc_Ta_19m != 9 , qc_H2O_19m != 9) # quickly filter out data with low quality
 
 
 ##### apply the function ####
@@ -163,6 +170,48 @@ LE_BREB = BREB_data %>%
 
 LE_BREB
 
+# plot the whole (kind of predicted) time series  for LE
+BREB_data%>%
+  ggplot()+
+  geom_line(aes(x = datetime, y = LE_Wm2_BREB), col = "blue")+
+  geom_line(aes(x = datetime, y = LE_Wm2_Eco), col = "lightblue")+
+  labs(y = expression("LE BREB system ["*W~m^{-2}*"]"), x = "")+
+  theme_bw()
+
+# mean daily course of LE
+BREB_data%>%
+  group_by(hour(datetime))%>%
+  # calculate mean daily values and percentiles
+  mutate(mean_daily_LE_Wm2_BREB = mean(LE_Wm2_BREB, na.rm = T), 
+         upper_mean_daily_LE_Wm2_BREB = quantile(LE_Wm2_BREB, probs = c(0.75), na.rm = T), 
+         lower_mean_daily_LE_Wm2_BREB = quantile(LE_Wm2_BREB, probs = c(0.25), na.rm = T), 
+         # for reference Eco data
+         mean_daily_LE_Wm2_Eco = mean(LE_Wm2_Eco, na.rm = T),
+         upper_mean_daily_LE_Wm2_Eco = quantile(LE_Wm2_Eco, probs = c(0.75), na.rm = T), 
+         lower_mean_daily_LE_Wm2_Eco = quantile(LE_Wm2_Eco, probs = c(0.25), na.rm = T)
+  )%>%
+  ggplot(aes(x = hour(datetime)))+
+  geom_line(aes(y = mean_daily_LE_Wm2_BREB), color = "darkred")+
+  geom_ribbon(aes(ymin=lower_mean_daily_LE_Wm2_BREB, 
+                  ymax=upper_mean_daily_LE_Wm2_BREB), alpha=0.05, fill = "darkred", 
+              color = "darkred", linetype = "dotted")+
+  geom_line(aes(y = mean_daily_LE_Wm2_Eco), color = "darkgreen")+
+  geom_ribbon(aes(ymin=lower_mean_daily_LE_Wm2_Eco, 
+                  ymax=upper_mean_daily_LE_Wm2_Eco), alpha=0.05, fill = "darkgreen", 
+              color = "darkgreen", linetype = "dotted")+
+  labs(y = expression("LE BREB system ["*W~m^{-2}*"]"), x = "Hour of the day")+
+  theme_bw()
+
+# get information on the number of missing values
+missing = BREB_data%>%
+  mutate(missing_values_LE_BREB_Eco_together = 
+           ifelse(is.na(LE_Wm2_BREB) | is.na(LE_Wm2_Eco), no = "value", yes = NA), 
+         missing_values_H_BREB_Eco_together = 
+           ifelse(is.na(H_Wm2_BREB) | is.na(H_Wm2_Eco), no = "value", yes = NA))
+1-colSums(is.na(missing))/nrow(missing)
+
+
+
 #save plots:
 # save as png
 ggsave(
@@ -185,21 +234,3 @@ BREB = BREB_data%>%
 # save
 save(x = BREB, file = "data/processed/fluxes_BREB.RData")
 
-
-
-##### check the time issues:
-
-BREB_data%>%
-  filter(datetime > "2021-06-23 00:0:00 UTC" & datetime < "2021-06-25 00:00:00 UTC")%>%
-  ggplot()+
-  geom_line(aes(x = datetime, y = H_Wm2_BREB), color = "red")+
-  geom_line(aes(x = datetime, y =  H_Wm2_Eco), color = "darkgreen")+
-  geom_vline(
-    xintercept = as.POSIXct("2021-06-23 17:30:00 UTC"),
-    color = "black"
-  ) +
-  theme_classic()
-
-range(Eco_data_30m$datetime)
-range(slow_profile_data$datetime)
-range(BREB_data$datetime)

@@ -11,7 +11,7 @@ load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_
 
 # filter for just one height...
 sonic_profile_data = sonic_profile_data%>%
-  filter(folder == "2021_30m_double_linear")
+  filter(folder == "2021_148m_double_linear")
 
 # prepare data
 wind_data = data.frame('wd' = as.numeric(sonic_profile_data[["wind_dir_[deg_from_north]"]]), 
@@ -155,3 +155,62 @@ ggplot() +
   annotation_map_tile(type = "osm") +
   geom_sf(data = footprint_sf, fill = NA, color = percentile) +
   coord_sf()
+
+#####
+library(stars)
+library(sf)
+library(ggplot2)
+library(ggspatial)
+
+map_dir = "C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/footprint_model_Kljun_2015/basemap_esri_world_imagery/"
+AOI <- read_sf(paste0(map_dir, "AOI.geojson"))
+base <- read_stars(paste0(map_dir, "basemap_20260515171916.257602.tif"))
+
+box <- st_polygon(list(matrix(
+  c(
+    13.47, 56.17,   # lower left
+    13.5575, 56.17,   # lower right
+    13.5575, 56.1935,   # upper right
+    13.47, 56.1935,   # upper left
+    13.47, 56.17    # close polygon
+  ),
+  ncol = 2,
+  byrow = TRUE
+)))
+
+# set crs
+bbox_sf <- st_sf(geometry = st_sfc(box),
+  crs = 4326
+)
+
+# GeoJSON is WGS84
+st_crs(AOI) <- 4326
+# transform to Web Mercator ((match basemap))same as basemap)
+AOI <- st_transform(AOI, 3857)
+
+# transform footprint and tower
+footprint_sf = st_transform(footprint_sf, 4326)
+
+
+# convert to rgb for plotting
+base_rgb <- st_rgb(base)
+
+# plot
+ggplot() +
+  geom_stars(data = base_rgb) +
+  geom_sf(data = st_transform(bbox_sf, 3857),
+          fill = "white",
+          color = "lightgrey",
+          linewidth = 0.3, alpha = 0.2)+
+  coord_sf(crs = 3857, expand = FALSE) +
+  annotation_north_arrow(
+    location = "tr",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.8, "cm"),
+    style = north_arrow_fancy_orienteering()
+  ) +
+  annotation_scale(
+    location = "tr",
+    height = unit(0.3, "cm")
+  )
+

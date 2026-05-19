@@ -5,11 +5,11 @@ library(ggpmisc)
 
 ## load data set for K Theory
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_BREB.RData") # fluxes from BREB
-load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_K_theory.RData") # fluxes from K theory
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_MBR.RData") # fluxes from K theory
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData")
 
 # combine both df 
-impact_df = left_join(K_theory, BREB%>%select(-H_Wm2_Eco, -LE_Wm2_Eco), by = "datetime")
+impact_df = left_join(MBR_data, BREB%>%select(-H_Wm2_Eco, -LE_Wm2_Eco), by = "datetime")
 
 # get stability parameter z-d/L
 zeta = sonic_profile_data%>%
@@ -57,10 +57,10 @@ impact_df = impact_df%>%
 
 # prepare plotting
 impact_df = impact_df %>%
-  rename("MBR H" = H_19_40_K, 
+  rename("MBR H" = H_EC_measured_sonic_30m, 
          "BREB H" = H_19_40_BREB, 
          "BREB LE"  = LE_19_40_BREB, 
-         "MBR LE" = LE_19_40_K)%>%
+         "MBR LE" = LE_Wm2_MBR)%>%
   pivot_longer(
     cols = c("MBR H", "BREB H", "BREB LE", "MBR LE"), 
     names_to = "flux_type", 
@@ -126,8 +126,5 @@ ggsave(
   dpi = 300
 )
 
-### Attention ###
-# doing the quality control and then investigating the effects of different parameters can trick me!
-# I used already the u* filtering procedure for the K_theory fluxes (0.15), then this introduces errors in the statistical analysis later
 
 
