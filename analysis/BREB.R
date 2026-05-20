@@ -57,8 +57,8 @@ BREB = function(H2O_mmol_mol_up,
      & (lambda*delta_q_kg_kg + c_p*delta_Ta_dgC) < 0)
   
   # apply
-  #H_Wm2_BREB  = if_else(valid, true  = H_Wm2_BREB, false = NA)
-  #LE_Wm2_BREB = if_else(valid, true = LE_Wm2_BREB, false = NA)
+  H_Wm2_BREB  = if_else(valid, true  = H_Wm2_BREB, false = NA)
+  LE_Wm2_BREB = if_else(valid, true = LE_Wm2_BREB, false = NA)
   
   # filter for physically plausable values
   # use qc filter also used by Billesbach et al. 2024, but adapted 1000Wm2 used there to 800 (more plausible in temperate forest in Sweden)
@@ -78,6 +78,7 @@ BREB = function(H2O_mmol_mol_up,
 ##### prepare the data #####
 library(tidyverse)
 library(ggpmisc)
+library(lubridate)
 
 # load data
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData") # EC data output from different heights
@@ -130,6 +131,9 @@ BREB_data = BREB_data%>%
       type = "latent"
     ))
 
+####do the plots ####
+
+# 1. BREB vs EC comparison plots ####
 # plot H from BREB
 H_BREB = BREB_data %>%
   ggplot(aes(x = H_Wm2_Eco, y = H_Wm2_BREB)) +
@@ -168,18 +172,43 @@ LE_BREB = BREB_data %>%
   coord_cartesian(xlim = c(-200, 600), ylim = c(-200, 600))+
   theme_bw()
 
-LE_BREB
+H_BREB + LE_BREB
+
+# save as pdf
+ggsave(
+  filename = "C:/Users/Lenovo/Downloads/BREB_result_overall.pdf",
+  plot = H_BREB + LE_BREB,
+  width = 21, height = 11, units = "cm",
+  dpi = 300
+)
+
+#### 2. plot: timeseries and daily mean course ####
 
 # plot the whole (kind of predicted) time series  for LE
-BREB_data%>%
-  ggplot()+
-  geom_line(aes(x = datetime, y = LE_Wm2_BREB), col = "blue")+
-  geom_line(aes(x = datetime, y = LE_Wm2_Eco), col = "lightblue")+
-  labs(y = expression("LE BREB system ["*W~m^{-2}*"]"), x = "")+
-  theme_bw()
+LE_2021= BREB_data %>%
+  ggplot() +
+  geom_line(aes(x = datetime,y = LE_Wm2_BREB,color = "BREB")) +
+  geom_line(aes(x = datetime,
+                y = LE_Wm2_Eco,
+                color = "EC")) +
+  scale_color_manual(name = NULL,values = c(
+    "BREB" = "darkblue",
+    "EC"   = "darkgrey")) +
+  scale_x_datetime(
+    breaks = scales::date_breaks("1 month"),
+    labels = scales::date_format("%b")
+  ) +
+  labs(y = expression("LE [" * W~m^{-2} * "]"),x = "") +
+  theme_bw() +
+  theme(
+    legend.position = c(0.1, 0.75), legend.background = element_rect(
+      fill = scales::alpha("white", 0.7),
+      color = "black"
+    )
+  )
 
 # mean daily course of LE
-BREB_data%>%
+LE_2021_mean = BREB_data%>%
   group_by(hour(datetime))%>%
   # calculate mean daily values and percentiles
   mutate(mean_daily_LE_Wm2_BREB = mean(LE_Wm2_BREB, na.rm = T), 
@@ -191,18 +220,80 @@ BREB_data%>%
          lower_mean_daily_LE_Wm2_Eco = quantile(LE_Wm2_Eco, probs = c(0.25), na.rm = T)
   )%>%
   ggplot(aes(x = hour(datetime)))+
-  geom_line(aes(y = mean_daily_LE_Wm2_BREB), color = "darkred")+
+  geom_line(aes(y = mean_daily_LE_Wm2_BREB), color = "darkblue")+
   geom_ribbon(aes(ymin=lower_mean_daily_LE_Wm2_BREB, 
-                  ymax=upper_mean_daily_LE_Wm2_BREB), alpha=0.05, fill = "darkred", 
-              color = "darkred", linetype = "dotted")+
-  geom_line(aes(y = mean_daily_LE_Wm2_Eco), color = "darkgreen")+
+                  ymax=upper_mean_daily_LE_Wm2_BREB), alpha=0.1, fill = "darkblue", 
+              color = "darkblue", linetype = "dotted")+
+  geom_line(aes(y = mean_daily_LE_Wm2_Eco), color = "darkgrey")+
   geom_ribbon(aes(ymin=lower_mean_daily_LE_Wm2_Eco, 
-                  ymax=upper_mean_daily_LE_Wm2_Eco), alpha=0.05, fill = "darkgreen", 
-              color = "darkgreen", linetype = "dotted")+
-  labs(y = expression("LE BREB system ["*W~m^{-2}*"]"), x = "Hour of the day")+
+                  ymax=upper_mean_daily_LE_Wm2_Eco), alpha=0.2, fill = "darkgrey", 
+              color = "darkgrey", linetype = "dotted")+
+  labs(y = expression("LE ["*W~m^{-2}*"]"), x = "Hour of the day")+
   theme_bw()
 
-# get information on the number of missing values
+# do the prediction for H BREB
+H_2021= BREB_data %>%
+  ggplot() +
+  geom_line(aes(x = datetime,y = H_Wm2_BREB,color = "BREB")) +
+  geom_line(aes(x = datetime,
+        y = H_Wm2_Eco,
+        color = "EC")) +
+  scale_color_manual(name = NULL,values = c(
+      "BREB" = "darkred",
+      "EC"   = "darkgrey")) +
+  scale_x_datetime(
+    breaks = scales::date_breaks("1 month"),
+    labels = scales::date_format("%b")
+  ) +
+  labs(y = expression("H [" * W~m^{-2} * "]"),x = "") +
+  theme_bw() +
+  theme(
+    legend.position = c(0.9, 0.75), legend.background = element_rect(
+      fill = scales::alpha("white", 0.7),
+      color = "black"
+    )
+  )
+
+# mean daily course of H
+H_2021_mean = BREB_data%>%
+  group_by(hour(datetime))%>%
+  # calculate mean daily values and percentiles
+  mutate(mean_daily_H_Wm2_BREB = mean(H_Wm2_BREB, na.rm = T), 
+         upper_mean_daily_H_Wm2_BREB = quantile(H_Wm2_BREB, probs = c(0.75), na.rm = T), 
+         lower_mean_daily_H_Wm2_BREB = quantile(H_Wm2_BREB, probs = c(0.25), na.rm = T), 
+         # for reference Eco data
+         mean_daily_H_Wm2_Eco = mean(H_Wm2_Eco, na.rm = T),
+         upper_mean_daily_H_Wm2_Eco = quantile(H_Wm2_Eco, probs = c(0.75), na.rm = T), 
+         lower_mean_daily_H_Wm2_Eco = quantile(H_Wm2_Eco, probs = c(0.25), na.rm = T)
+  )%>%
+  ggplot(aes(x = hour(datetime)))+
+  geom_line(aes(y = mean_daily_H_Wm2_BREB), color = "darkred")+
+  geom_ribbon(aes(ymin=lower_mean_daily_H_Wm2_BREB, 
+                  ymax=upper_mean_daily_H_Wm2_BREB), alpha=0.1, fill = "darkred", 
+              color = "darkred", linetype = "dotted")+
+  geom_line(aes(y = mean_daily_H_Wm2_Eco), color = "darkgrey")+
+  geom_ribbon(aes(ymin=lower_mean_daily_H_Wm2_Eco, 
+                  ymax=upper_mean_daily_H_Wm2_Eco), alpha=0.2, fill = "darkgrey", 
+              color = "darkgrey", linetype = "dotted")+
+  labs(y = expression("H ["*W~m^{-2}*"]"), x = "Hour of the day")+
+  theme_bw()
+
+
+# combine everything in one plot 
+BREB_preds_H_LE = H_2021 + H_2021_mean +
+  plot_layout(widths = c(4, 1)) + 
+  LE_2021 + LE_2021_mean +
+  plot_layout(widths = c(4, 1))
+
+# save the plot
+ggsave(
+  filename = "C:/Users/Lenovo/Downloads/BREB_LE_H_timeseries.pdf",
+  plot = BREB_preds_H_LE,
+  width = 30, height = 10, units = "cm",
+  dpi = 300
+)
+
+# get information on the number of missing values ####
 missing = BREB_data%>%
   mutate(missing_values_LE_BREB_Eco_together = 
            ifelse(is.na(LE_Wm2_BREB) | is.na(LE_Wm2_Eco), no = "value", yes = NA), 
@@ -210,16 +301,6 @@ missing = BREB_data%>%
            ifelse(is.na(H_Wm2_BREB) | is.na(H_Wm2_Eco), no = "value", yes = NA))
 1-colSums(is.na(missing))/nrow(missing)
 
-
-
-#save plots:
-# save as png
-ggsave(
-  filename = "C:/Users/Lenovo/Downloads/BREB_result_overall.pdf",
-  plot = H_BREB + LE_BREB,
-  width = 21, height = 11, units = "cm",
-  dpi = 300
-)
 
 # save the result to use later during analysis
 BREB = BREB_data%>%
