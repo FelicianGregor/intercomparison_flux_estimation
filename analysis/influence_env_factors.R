@@ -17,23 +17,11 @@ zeta = sonic_profile_data%>%
 
 impact_df = left_join(impact_df, zeta, by = "datetime")
 
-# stability classification based on Sorbjan and Grachev 2010: “An Evaluation of the FluxGradient Relationship in the Stable Boundary Layer
-classify_stability_fine <- function(zeta) {
-  ifelse(is.na(zeta), NA,
-         ifelse(zeta < -1, "xu",
-                ifelse(zeta < -0.6, "vu",
-                       ifelse(zeta < -0.2, "u",
-                              ifelse(zeta < -0.02, "wu",
-                                     ifelse(zeta < 0.02, "n",
-                                            ifelse(zeta < 0.2, "ws",
-                                                   ifelse(zeta < 0.6, "s",
-                                                          ifelse(zeta < 1, "vs",
-                                                                 "xs")))))))))
-}
+# stability classification following Biermann et al. 2014
 classify_stability = function(zeta){
   ifelse(is.na(zeta), NA,
-         ifelse(zeta < -0.02, "unstable",
-                ifelse(zeta < 0.02, "neutral",
+         ifelse(zeta < -0.0625, "unstable",
+                ifelse(zeta < 0.0625, "neutral",
                        "stable")))
 }
 
