@@ -60,7 +60,7 @@ impact_df = impact_df %>%
                       no = LE_Wm2_Eco))
 
 # make the plot
-impact_df%>%
+stability_plot = impact_df%>%
   ggplot(aes(x = Eco_data, y = flux_value)) +
   geom_point(size = 0.4, alpha = 0.3) +
   geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1.5) +
@@ -74,7 +74,19 @@ impact_df%>%
   )+
   coord_cartesian(xlim = c(-300, 800), ylim = c(-300, 800)) +
   facet_wrap(~flux_type, ncol = 2, nrow = 2) +
+  labs(y = "Turbulent flux [W/m2]",
+       x = "Reference flux ICOS Ecosystem station [W/m2]", 
+       color = "stability class")+
   theme_bw()
+  
+ggsave(
+    filename = "C:/Users/Lenovo/Downloads/stability_plot.pdf",
+    plot = stability_plot,
+    width = 21, height = 18, units = "cm",
+    dpi = 150
+  )
+  
+  
 
 
 ### look at u_star effects
@@ -108,10 +120,10 @@ u_star_plot = impact_df%>%
   theme_bw()
 
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/u_star_plot.png",
+  filename = "C:/Users/Lenovo/Downloads/u_star_plot.pdf",
   plot = u_star_plot,
   width = 21, height = 18, units = "cm",
-  dpi = 300
+  dpi = 150
 )
 
 
