@@ -13,7 +13,8 @@ MBR_LE = function(
                 Ta_dgC_down, 
                 height_diff_m, 
                 P_ground_hPa, 
-                H_Wm2_EC_measured)
+                H_Wm2_EC_measured, 
+                Rnet)
   {
   
   # convert humidity from mmol/mol to kg/kg
@@ -66,7 +67,7 @@ MBR_LE = function(
   #threshold_Bo = 0.2
   #Bo = (c_p/lambda)* (delta_Ta_dgC/delta_q_kg_kg)
   #LE_Wm2_MBR = ifelse(abs(Bo)<0.2, yes = NA, no = LE_Wm2_MBR)
-  
+  #LE_Wm2_MBR = ifelse(abs(LE_Wm2_MBR) > (Rnet + 50), NA, LE_Wm2_MBR)
   
   # return sensible heat as default
   return(LE_Wm2_MBR)
@@ -112,7 +113,8 @@ slow_profile_data$LE_Wm2_MBR = MBR_LE(H2O_mmol_mol_up = slow_profile_data$H2O_40
                     Ta_dgC_down = slow_profile_data$Ta_19m, 
                     height_diff_m = 21, 
                     P_ground_hPa = slow_profile_data$P_ground_hPa, 
-                    H_Wm2_EC_measured = slow_profile_data$H_EC_measured_sonic_30m
+                    H_Wm2_EC_measured = slow_profile_data$H_EC_measured_sonic_30m, 
+                    Rnet = slow_profile_data$R_Net_Wm2
                     )
 
 # 1. MBR vs EC comparison plots ####

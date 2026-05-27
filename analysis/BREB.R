@@ -67,6 +67,18 @@ BREB = function(H2O_mmol_mol_up,
     yes = LE_Wm2_BREB,
     no = NA)
   
+  # do the same for H
+  H_Wm2_BREB <- ifelse(
+    H_Wm2_BREB > -200 & H_Wm2_BREB < 800,
+    yes = H_Wm2_BREB,
+    no = NA)
+  
+  # do filtering based on minimal measurable gradient
+  H_Wm2_BREB <- ifelse(
+    abs(delta_Ta_dgC) < 0.15,
+  yes = NA,
+  no = H_Wm2_BREB)
+  
   # return sensible heat as default
   if (type == "latent") {
     return(LE_Wm2_BREB)
