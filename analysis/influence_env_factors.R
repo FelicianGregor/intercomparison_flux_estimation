@@ -1,130 +1,190 @@
-##### investigate stability/u_star and footprint effects on prediction accuracy #####
+##### investigate stability/u_star effects with lm models #####
 
 library(tidyverse)
-library(ggpmisc)
 
-## load data set for K Theory
-load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_BREB.RData") # fluxes from BREB
-load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_MBR.RData") # fluxes from K theory
+## load data
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_BREB.RData")
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_MBR.RData")
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData")
 
-# combine both df 
-impact_df = left_join(MBR_data, BREB%>%select(-H_Wm2_Eco, -LE_Wm2_Eco), by = "datetime")
+# combine datasets
+impact_df <- left_join(
+  MBR_data,
+  BREB %>% select(-H_Wm2_Eco, -LE_Wm2_Eco),
+  by = "datetime"
+)
 
-# get stability parameter z-d/L
-zeta = sonic_profile_data%>%
+# add Obhukhov length L and zeta (stability parameter based on L)
+zeta <- sonic_profile_data %>%
   select(datetime, `(z-d)/L_[#]`, `L_[m]`)
 
-impact_df = left_join(impact_df, zeta, by = "datetime")
+impact_df <- left_join(impact_df, zeta, by = "datetime")
 
-# stability classification following Biermann et al. 2014
-classify_stability = function(zeta){
+##### stability classification based on Biermann et al. 2014 #####
+classify_stability <- function(zeta){
   ifelse(is.na(zeta), NA,
          ifelse(zeta < -0.0625, "unstable",
                 ifelse(zeta < 0.0625, "neutral",
-                       "stable")))
-}
+                       "stable")))}
+# apply 
+impact_df <- impact_df %>%
+  mutate(stability_class = classify_stability(`(z-d)/L_[#]`))
 
-# apply function and get col with stability classes using Sorbjan and Grachev 2010:
-impact_df = impact_df%>%
-  mutate(stability_classes = classify_stability(zeta = impact_df$`(z-d)/L_[#]`))
+##### u* classes, as in Billesbach et al. 2024 #####
+classify_u_star <- function(u_star){
+  ifelse(is.na(u_star), NA,
+         ifelse(u_star < 0.2, "0-0.2",
+                ifelse(u_star < 0.4, "0.2-0.4",
+                       ifelse(u_star < 0.6, "0.4-0.6",
+                              ">0.6"))))}
+# apply again
+impact_df <- impact_df %>%
+  mutate(u_star_class = classify_u_star(u_star))
 
-# check perc of the classes
-impact_df %>%
-  count(stability_classes) %>%
-  mutate(perc = n / sum(n) * 100)
-
-# use only Obhukov length with stability classes (classes are rather arbitrary, but guided by the graphics from Stull 1988 page 181)
-impact_df = impact_df%>%
-  mutate(
-  stability_L = case_when(
-    `L_[m]` > 50  ~ "stable (L > 50)",
-    `L_[m]` < -50 ~ "unstable (L < -50)",
-    TRUE          ~ "neutral (abs(L) < 50)"
-  ))
-
-# prepare plotting
-impact_df = impact_df %>%
-  rename("MBR H" = H_EC_measured_sonic_30m, 
-         "BREB H" = H_19_40_BREB, 
-         "BREB LE"  = LE_19_40_BREB, 
-         "MBR LE" = LE_Wm2_MBR)%>%
+##### prepare pivot longer data ######
+impact_df_long <- impact_df %>%
+  rename(
+    "MBR H"   = H_EC_measured_sonic_30m,
+    "BREB H"  = H_19_40_BREB,
+    "BREB LE" = LE_19_40_BREB,
+    "MBR LE"  = LE_Wm2_MBR
+  ) %>%
   pivot_longer(
-    cols = c("MBR H", "BREB H", "BREB LE", "MBR LE"), 
-    names_to = "flux_type", 
+    cols = c("MBR H", "BREB H", "BREB LE", "MBR LE"),
+    names_to = "flux_type",
     values_to = "flux_value"
   ) %>%
   mutate(
-    Eco_data = ifelse(flux_type == "MBR H" | flux_type == "BREB H", 
-                      yes = H_Wm2_Eco, 
-                      no = LE_Wm2_Eco))
+    Eco_data = ifelse(
+      flux_type %in% c("MBR H", "BREB H"),
+      H_Wm2_Eco,
+      LE_Wm2_Eco))
 
-# make the plot
-stability_plot = impact_df%>%
-  ggplot(aes(x = Eco_data, y = flux_value)) +
-  geom_point(size = 0.4, alpha = 0.3) +
-  geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1.5) +
-  geom_smooth(aes(color = stability_classes), method = "lm", linewidth = 1) +
-  stat_poly_eq(
-    aes(color = stability_classes,
-        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
-    formula = y ~ x,
-    parse = TRUE,
-    size = 3
-  )+
-  coord_cartesian(xlim = c(-300, 800), ylim = c(-300, 800)) +
-  facet_wrap(~flux_type, ncol = 2, nrow = 2) +
-  labs(y = "Turbulent flux [W/m2]",
-       x = "Reference flux ICOS Ecosystem station [W/m2]", 
-       color = "stability class")+
-  theme_bw()
+##### function to extract model statistics #####
+
+extract_lm_stats <- function(df){
   
-ggsave(
-    filename = "C:/Users/Lenovo/Downloads/stability_plot.pdf",
-    plot = stability_plot,
-    width = 21, height = 18, units = "cm",
-    dpi = 150
+  # remove missing values
+  df <- df %>%
+    filter(
+      !is.na(Eco_data),
+      !is.na(flux_value))
+  
+  
+  # make NA if too few observations
+  if(nrow(df) < 3){
+    return(
+      tibble(
+        n = nrow(df),
+        equation = NA_character_,
+        intercept_bias = NA_real_,
+        slope = NA_real_,
+        R2 = NA_real_,
+        MAE = NA_real_,
+        MSE = NA_real_,
+        RMSE = NA_real_
+      ))}
+  
+  # linear model
+  model <- lm(flux_value ~ Eco_data, data = df)
+  
+  # predictions for getting the residual
+  pred <- predict(model)
+  resid <- df$flux_value - pred
+  
+  #get coefficients
+  intercept <- coef(model)[1]
+  slope <- coef(model)[2]
+  
+  # calculate evaluation metrics
+  r2   <- summary(model)$r.squared
+  mae  <- mean(abs(resid))
+  mse  <- mean(resid^2)
+  rmse <- sqrt(mse)
+  
+  # paste the equation together
+  equation <- paste0(
+    "y = ",
+    round(intercept, 3),
+    " + ",
+    round(slope, 3),
+    "x"
   )
   
-  
-
-
-### look at u_star effects
-# create filer function first:
-classify_u_star = function(u_star){
-  ifelse(is.na(u_star), NA, 
-         ifelse(u_star<0.2, "0-0.2", 
-                ifelse(u_star<0.4, "0.2-0.4", 
-                       ifelse(u_star<0.6, "0.4-0.6", 
-                              ">0.6"))))
+  # summarise
+  tibble(
+    n = nrow(df),
+    equation = equation,
+    intercept_bias = intercept,
+    slope = slope,
+    R2 = r2,
+    MAE = mae,
+    MSE = mse,
+    RMSE = rmse
+  )
 }
 
-u_star_plot = impact_df%>%
-  mutate(u_star_class = classify_u_star(u_star))%>%
-  ggplot(aes(x = Eco_data, y = flux_value)) +
-  geom_point(size = 0.4, alpha = 0.3) +
-  geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1.5) +
-  geom_smooth(aes(color = u_star_class), method = "lm", linewidth = 1) +
-  stat_poly_eq(
-    aes(color = u_star_class,
-        label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
-    formula = y ~ x,
-    parse = TRUE,
-    size = 3
-  )+
-  coord_cartesian(xlim = c(-300, 900), ylim = c(-300, 900)) +
-  facet_wrap(~flux_type, ncol = 2, nrow = 2) +
-  labs(y = "Turbulent flux [W/m2]",
-       x = "Reference flux ICOS Ecosystem station [W/m2]", 
-       color = "u* class")+
-  theme_bw()
+###############################################################
+##### influence of stability parameter 
+###############################################################
 
-ggsave(
-  filename = "C:/Users/Lenovo/Downloads/u_star_plot.pdf",
-  plot = u_star_plot,
-  width = 21, height = 18, units = "cm",
-  dpi = 150
+stability_results <- impact_df_long %>%
+  group_by(flux_type, stability_class) %>%
+  group_modify(~ extract_lm_stats(.x)) %>%
+  ungroup()
+
+# overall models (all stability classes combined)
+stability_overall <- impact_df_long %>%
+  group_by(flux_type) %>%
+  group_modify(~ extract_lm_stats(.x)) %>%
+  mutate(stability_class = "overall") %>%
+  ungroup()
+
+# cbind
+stability_results_all <- bind_rows(
+  stability_results,
+  stability_overall
 )
 
+print(stability_results_all, n = 40)
 
+###############################################################
+##### influence of u*
+###############################################################
+
+u_star_results <- impact_df_long %>%
+  group_by(flux_type, u_star_class) %>%
+  group_modify(~ extract_lm_stats(.x)) %>%
+  ungroup()
+
+# overall models
+u_star_overall <- impact_df_long %>%
+  group_by(flux_type) %>%
+  group_modify(~ extract_lm_stats(.x)) %>%
+  mutate(u_star_class = "overall") %>%
+  ungroup()
+
+#cbind
+u_star_results_all <- bind_rows(
+  u_star_results,
+  u_star_overall
+)
+
+print(u_star_results_all, n = 50)
+
+### write to latex (only stability results)
+library(kableExtra)
+table_tex <- stability_results %>%
+  select(-equation)%>%
+  kbl(
+    format = "latex",
+    booktabs = TRUE,
+    digits = 2
+  )
+
+# write
+writeLines(
+  table_tex,
+  "C:/Users/Lenovo/Downloads/stability_table.tex"
+)
 
