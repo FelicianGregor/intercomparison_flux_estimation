@@ -171,7 +171,7 @@ H_MBR + LE_MBR
 
 # save as pdf
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/MBR_70m_comparison.pdf",
+  filename = "plots/MBR_70m_comparison.pdf",
   plot = H_MBR + LE_MBR,
   width = 21, height = 11, units = "cm", dpi = 300
 )
@@ -234,7 +234,9 @@ LE_2021_70m_mean =
     color = NULL,
     fill = NULL) +
   theme_bw() +
-  theme(legend.position = c(0.8, 0.8), 
+  theme(legend.position = c(0.8, 0.8),
+        legend.key.size = unit(0.4, "cm"), 
+        legend.text = element_text(size = 7), 
         legend.background = element_rect(
           colour = "black",
           fill = "white"), legend.box.background = element_rect(
@@ -300,7 +302,9 @@ H_2021_70m_mean =
     color = NULL,
     fill = NULL) +
   theme_bw() +
-  theme(legend.position = c(0.8, 0.8), 
+  theme(legend.position = c(0.8, 0.8),
+        legend.text = element_text(size = 7), 
+        legend.key.size = unit(0.4, "cm"), 
         legend.background = element_rect(
           colour = "black",
           fill = "white"), legend.box.background = element_rect(
@@ -316,7 +320,7 @@ MBR_preds_H_LE_70m = H_2021_70m + H_2021_70m_mean +
 # save:
 # save the plot
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/MBR_LE_H_70m_timeseries.pdf",
+  filename = "plots/MBR_LE_H_70m_timeseries.pdf",
   plot = MBR_preds_H_LE_70m,
   width = 30, height = 10, units = "cm",
   dpi = 300
@@ -437,7 +441,7 @@ H_MBR + LE_MBR
 
 # save as pdf
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/MBR_148m_comparison.pdf",
+  filename = "plots/MBR_148m_comparison.pdf",
   plot = H_MBR + LE_MBR,
   width = 21, height = 11, units = "cm", dpi = 300
 )
@@ -501,7 +505,9 @@ LE_2021_148m_mean =
     color = NULL,
     fill = NULL) +
   theme_bw() +
-  theme(legend.position = c(0.8, 0.8), 
+  theme(legend.position = c(0.8, 0.8),
+        legend.text = element_text(size = 7), 
+        legend.key.size = unit(0.4, "cm"), 
         legend.background = element_rect(
           colour = "black",
           fill = "white"), legend.box.background = element_rect(
@@ -563,7 +569,9 @@ H_2021_148m_mean =
     color = NULL,
     fill = NULL) +
   theme_bw() +
-  theme(legend.position = c(0.8, 0.8), 
+  theme(legend.position = c(0.8, 0.8),
+        legend.text = element_text(size = 7), 
+        legend.key.size = unit(0.4, "cm"), 
         legend.background = element_rect(
           colour = "black",
           fill = "white"), legend.box.background = element_rect(
@@ -580,7 +588,7 @@ MBR_preds_H_LE_148m = H_2021_148m + H_2021_148m_mean +
 # save:
 # save the plot
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/MBR_LE_H_148m_timeseries.pdf",
+  filename = "plots/MBR_LE_H_148m_timeseries.pdf",
   plot = MBR_preds_H_LE_148m,
   width = 30, height = 10, units = "cm",
   dpi = 300
