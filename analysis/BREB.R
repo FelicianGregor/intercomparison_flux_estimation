@@ -188,7 +188,7 @@ H_BREB + LE_BREB
 
 # save as pdf
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/BREB_result_overall.pdf",
+  filename = "./plots/BREB_result_overall.pdf",
   plot = H_BREB + LE_BREB,
   width = 21, height = 11, units = "cm",
   dpi = 300
@@ -299,20 +299,46 @@ BREB_preds_H_LE = H_2021 + H_2021_mean +
 
 # save the plot
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/BREB_LE_H_timeseries.pdf",
+  filename = "./plots/BREB_LE_H_timeseries.pdf",
   plot = BREB_preds_H_LE,
-  width = 30, height = 10, units = "cm",
+  width = 25, height = 10, units = "cm",
   dpi = 300
 )
 
 # get information on the number of missing values ####
-missing = BREB_data%>%
-  mutate(missing_values_LE_BREB_Eco_together = 
-           ifelse(is.na(LE_Wm2_BREB) | is.na(LE_Wm2_Eco), no = "value", yes = NA), 
-         missing_values_H_BREB_Eco_together = 
-           ifelse(is.na(H_Wm2_BREB) | is.na(H_Wm2_Eco), no = "value", yes = NA))
-1-colSums(is.na(missing))/nrow(missing)
+#### BREB data availability ####
 
+BREB_remain <- BREB_data %>%
+  summarise(
+    total_obs = n(),
+    
+    # LE availability
+    LE_BREB_available = sum(!is.na(LE_Wm2_BREB)),
+    LE_BREB_available_pct = 100 * mean(!is.na(LE_Wm2_BREB)),
+    
+    LE_Eco_available = sum(!is.na(LE_Wm2_Eco)),
+    LE_Eco_available_pct = 100 * mean(!is.na(LE_Wm2_Eco)),
+    
+    LE_complete_pairs = sum(!is.na(LE_Wm2_BREB) & !is.na(LE_Wm2_Eco)),
+    LE_complete_pairs_pct = 100 * mean(!is.na(LE_Wm2_BREB) & !is.na(LE_Wm2_Eco)),
+    
+    # H availability
+    H_BREB_available = sum(!is.na(H_Wm2_BREB)),
+    H_BREB_available_pct = 100 * mean(!is.na(H_Wm2_BREB)),
+    
+    H_Eco_available = sum(!is.na(H_Wm2_Eco)),
+    H_Eco_available_pct = 100 * mean(!is.na(H_Wm2_Eco)),
+    
+    H_complete_pairs = sum(!is.na(H_Wm2_BREB) & !is.na(H_Wm2_Eco)),
+    H_complete_pairs_pct = 100 * mean(!is.na(H_Wm2_BREB) & !is.na(H_Wm2_Eco))
+  ) %>%
+  pivot_longer(
+    cols = -total_obs,
+    names_to = "metric",
+    values_to = "value"
+  )
+
+BREB_remain
 
 # save the result to use later during analysis
 BREB = BREB_data%>%

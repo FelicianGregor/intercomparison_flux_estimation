@@ -29,11 +29,11 @@ test_data  <- data[!sample, ]
 #data$WS
 #data$SW_IN_1_1_1
 
-
+train_data_clean = na.omit(train_data)
 
 rf_model = ranger(
-  formula = H_Wm2 ~ Ta_24m + Ta_55m + Ta_100m + WS + SW_IN_1_1_1, 
-  data = train_data, 
+  formula = H_Wm2 ~ Ta_24m + Ta_55m + Ta_100m, 
+  data = train_data_clean, 
   importance = "permutation", 
   scale.permutation.importance = TRUE, 
   mtry = 3
@@ -61,7 +61,7 @@ abline(model, col = "red", lwd = 2)
 
 # predict whole week or so
 
-day = 15000
+day = 5000
 idx <- day:(day + 336)
 
 #prediction for a week
@@ -118,9 +118,9 @@ test_data  <- data[!sample, ]
 #data$SW_IN_1_1_1
 
 
-
+# model works surprisingly good even with only three measurement heights
 glm_model = lm(
-  formula = H_Wm2 ~ poly(Ta_24m, 3) * poly(Ta_55m, 3) * poly(Ta_100m, 3) * poly(WS, 3) * poly(SW_IN_1_1_1, 3), 
+  formula = H_Wm2 ~ poly(Ta_24m, 3) * poly(Ta_55m, 3) * poly(Ta_100m, 3), 
   data = train_data
 )
 

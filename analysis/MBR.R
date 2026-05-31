@@ -161,7 +161,7 @@ H_MBR + LE_MBR
 
 # save as pdf
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/MBR_result_overall.pdf",
+  filename = "./plots/MBR_result_overall.pdf",
   plot = H_MBR + LE_MBR,
   width = 21, height = 11, units = "cm", dpi = 300
 )
@@ -272,26 +272,44 @@ MBR_preds_H_LE = H_2021 + H_2021_mean +
 # save:
 # save the plot
 ggsave(
-  filename = "C:/Users/Lenovo/Downloads/MBR_LE_H_timeseries.pdf",
+  filename = "./plots/MBR_LE_H_timeseries.pdf",
   plot = MBR_preds_H_LE,
-  width = 30, height = 10, units = "cm",
+  width = 25, height = 10, units = "cm",
   dpi = 300
 )
 
 # get information on the number of missing values ####
-missing = slow_profile_data%>%
-  mutate(missing_values_LE_MBR_Eco_together = 
-           ifelse(is.na(LE_Wm2_MBR) | is.na(LE_Wm2_Eco), no = "value", yes = NA))
-1-colSums(is.na(missing))/nrow(missing)
+#### Remaining-data availability ####
 
-# save the result to df to use later
-MBR_data = slow_profile_data%>%
-  select(datetime, 
-         LE_Wm2_Eco, 
-         H_Wm2_Eco, 
-         H_EC_measured_sonic_30m, 
-         LE_Wm2_MBR,
-         u_star)
+remain_summary <- slow_profile_data %>%
+  summarise(
+    total_obs = n(),
+    
+    LE_MBR_available = sum(!is.na(LE_Wm2_MBR)),
+    LE_MBR_available_pct = 100 * mean(!is.na(LE_Wm2_MBR)),
+    
+    LE_Eco_available = sum(!is.na(LE_Wm2_Eco)),
+    LE_Eco_available_pct = 100 * mean(!is.na(LE_Wm2_Eco)),
+    
+    LE_complete_pairs = sum(!is.na(LE_Wm2_MBR) & !is.na(LE_Wm2_Eco)),
+    LE_complete_pairs_pct = 100 * mean(!is.na(LE_Wm2_MBR) & !is.na(LE_Wm2_Eco)),
+    
+    H_MBR_available = sum(!is.na(H_EC_measured_sonic_30m)),
+    H_MBR_available_pct = 100 * mean(!is.na(H_EC_measured_sonic_30m)),
+    
+    H_Eco_available = sum(!is.na(H_Wm2_Eco)),
+    H_Eco_available_pct = 100 * mean(!is.na(H_Wm2_Eco)),
+    
+    H_complete_pairs = sum(!is.na(H_EC_measured_sonic_30m) & !is.na(H_Wm2_Eco)),
+    H_complete_pairs_pct = 100 * mean(!is.na(H_EC_measured_sonic_30m) & !is.na(H_Wm2_Eco))
+  ) %>%
+  pivot_longer(
+    cols = -total_obs,
+    names_to = "metric",
+    values_to = "value"
+  )
+
+remain_summary
 
 # save
 save(x = MBR_data, file = "data/processed/fluxes_MBR.RData")

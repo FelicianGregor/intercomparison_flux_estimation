@@ -322,15 +322,31 @@ MBR_preds_H_LE_70m = H_2021_70m + H_2021_70m_mean +
 ggsave(
   filename = "plots/MBR_LE_H_70m_timeseries.pdf",
   plot = MBR_preds_H_LE_70m,
-  width = 30, height = 10, units = "cm",
+  width = 25, height = 10, units = "cm",
   dpi = 300
 )
 
 # get information on the number of missing values ####
-missing = slow_profile_data%>%
-  mutate(missing_values_LE_MBR_Eco_together = 
-           ifelse(is.na(LE_Wm2_MBR) | is.na(LE_Wm2_Eco), no = "value", yes = NA))
-1-colSums(is.na(missing))/nrow(missing)
+MBR_remain_70m <- slow_profile_data %>%
+  summarise(
+    total_obs = n(),
+    
+    # LE availability
+    LE_MBR_available = sum(!is.na(LE_Wm2_MBR)),
+    LE_MBR_available_pct = 100 * mean(!is.na(LE_Wm2_MBR)),
+    
+    # H availability
+    H_MBR_available = sum(!is.na(H_EC_measured_sonic_70m)),
+    H_MBR_available_pct = 100 * mean(!is.na(H_EC_measured_sonic_70m)),
+    
+  ) %>%
+  pivot_longer(
+    cols = -total_obs,
+    names_to = "metric",
+    values_to = "value"
+  )
+
+MBR_remain_70m
 
 # save the result to df to use later
 MBR_data_70m = slow_profile_data%>%
@@ -590,15 +606,38 @@ MBR_preds_H_LE_148m = H_2021_148m + H_2021_148m_mean +
 ggsave(
   filename = "plots/MBR_LE_H_148m_timeseries.pdf",
   plot = MBR_preds_H_LE_148m,
-  width = 30, height = 10, units = "cm",
+  width = 25, height = 10, units = "cm",
   dpi = 300
 )
 
-# get information on the number of missing values ####
+# get information on the number of remaining values ####
 missing = slow_profile_data%>%
   mutate(missing_values_LE_MBR_Eco_together = 
            ifelse(is.na(LE_Wm2_MBR) | is.na(LE_Wm2_Eco), no = "value", yes = NA))
 1-colSums(is.na(missing))/nrow(missing)
+
+#### BREB data availability ####
+
+MBR_remain_148m <- slow_profile_data %>%
+  summarise(
+    total_obs = n(),
+    
+    # LE availability
+    LE_MBR_available = sum(!is.na(LE_Wm2_MBR)),
+    LE_MBR_available_pct = 100 * mean(!is.na(LE_Wm2_MBR)),
+    
+    # H availability
+    H_MBR_available = sum(!is.na(H_EC_measured_sonic_148m)),
+    H_MBR_available_pct = 100 * mean(!is.na(H_EC_measured_sonic_148m)),
+    
+  ) %>%
+  pivot_longer(
+    cols = -total_obs,
+    names_to = "metric",
+    values_to = "value"
+  )
+
+MBR_remain_148m
 
 # save the result to df to use later
 MBR_data_148m = slow_profile_data%>%
@@ -613,4 +652,13 @@ MBR_data_148m = slow_profile_data%>%
 save(x = MBR_data_148m, file = "data/processed/fluxes_MBR_148m.RData")
 
 
+###################################################
+############ save timeseries plots all together
+###################################################
 
+ggsave(
+  filename = "plots/MBR_LE_H_timeseries_70_148m_all.pdf",
+  plot = MBR_preds_H_LE_70m / MBR_preds_H_LE_148m,
+  width = 25, height = 20, units = "cm",
+  dpi = 300
+)
