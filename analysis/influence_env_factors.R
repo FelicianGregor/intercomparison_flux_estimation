@@ -7,6 +7,7 @@ library(tidyverse)
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_BREB.RData")
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/fluxes_MBR.RData")
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData")
+load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/Eco_data_30m.RData")
 
 # combine datasets
 impact_df <- left_join(
@@ -14,6 +15,12 @@ impact_df <- left_join(
   BREB %>% select(-H_Wm2_Eco, -LE_Wm2_Eco),
   by = "datetime"
 )
+
+# add R_net and G for energy balance closure 
+impact_df <- left_join(
+  impact_df, Eco_data_30m%>%select(datetime, R_Net_Wm2, G_Wm2), 
+  by = "datetime")
+
 
 # add Obhukhov length L and zeta (stability parameter based on L)
 zeta <- sonic_profile_data %>%
@@ -34,7 +41,7 @@ impact_df <- impact_df %>%
   mutate(
     stability_class = factor(
       stability_class,
-      levels = c("unstable", "neutral", "stable"),
+      levels = c("stable", "neutral", "unstable"),
       ordered = TRUE))
 
 ##### u* classes, as in Billesbach et al. 2024 #####
@@ -50,23 +57,36 @@ impact_df <- impact_df %>%
   
 
 ##### prepare pivot longer data ######
+##### prepare pivot longer data ######
 impact_df_long <- impact_df %>%
+  mutate(
+    `EC EBC` = H_Wm2_Eco + LE_Wm2_Eco,
+    available_energy = R_Net_Wm2 - G_Wm2
+  ) %>%
   rename(
-    "MBR H"   = H_EC_measured_sonic_30m,
-    "BREB H"  = H_19_40_BREB,
-    "BREB LE" = LE_19_40_BREB,
-    "MBR LE"  = LE_Wm2_MBR
+    `MBR H` = H_EC_measured_sonic_30m,
+    `BREB H` = H_19_40_BREB,
+    `BREB LE` = LE_19_40_BREB,
+    `MBR LE` = LE_Wm2_MBR
   ) %>%
   pivot_longer(
-    cols = c("MBR H", "BREB H", "BREB LE", "MBR LE"),
+    cols = c(`MBR H`, `BREB H`, `BREB LE`, `MBR LE`, `EC EBC`),
     names_to = "flux_type",
     values_to = "flux_value"
   ) %>%
+  # ensure order order 
   mutate(
-    Eco_data = ifelse(
-      flux_type %in% c("MBR H", "BREB H"),
-      H_Wm2_Eco,
-      LE_Wm2_Eco))
+    flux_type = factor(
+      flux_type,
+      levels = c("BREB H", "BREB LE", "MBR H", "MBR LE", "EC EBC")
+    ))%>%
+  mutate(
+    Eco_data = case_when(
+      flux_type %in% c("MBR H", "BREB H") ~ H_Wm2_Eco,
+      flux_type %in% c("MBR LE", "BREB LE") ~ LE_Wm2_Eco,
+      flux_type == "EC EBC" ~ available_energy
+    )
+  )
 
 ##### function to extract model statistics #####
 
@@ -119,6 +139,9 @@ get_stats <- function(df){
   mae  <- mean(abs(error), na.rm = T)
   mse  <- mean(error^2)
   rmse <- sqrt(mse)
+  
+  # standard error of regression
+  std_error = summary(model)$sigma
 
   #Nash Sutcliff Efficiency for combined model performance/goodness of fit
   obs = df$Eco_data
@@ -140,7 +163,8 @@ get_stats <- function(df){
     Bias = bias, 
     MAE = mae,
     NSE = NSE, 
-    KGE = KGE
+    KGE = KGE, 
+    std_error = std_error
   )
 }
 
@@ -156,19 +180,12 @@ stability_results <- impact_df_long %>%
 
 # ensure the correct order 
 stability_results <- stability_results %>%
-  arrange(flux_type, stability_class)
-
-stability_results = stability_results%>%
+  # ensure order
+  arrange(flux_type, stability_class)%>%
   rename("Flux" = flux_type, 
          "Stability" = stability_class, 
-         "R^{2}" = R2, 
-         "n" = n, 
-         "MAE (Wm^{-2})" = MAE, 
-         "Bias (Wm^{-2})" = Bias, 
-         "NSE" = NSE, 
-         "Slope" = Slope, 
-         "Intercept (Wm^{-2})" = intercept)%>%
-  select(-KGE)
+         "Intercept" = intercept)%>%
+  select(-KGE, -std_error)
 
 print(stability_results, n = 40)
 
@@ -199,18 +216,13 @@ u_star_results <- impact_df_long %>%
   # drop NA rows 
   drop_na()
 
-#cbind
+# rename
 u_star_results = u_star_results%>%
   rename("Flux" = flux_type, 
-         "U* (ms^{-1})" = u_star_class, 
-         "R^{2}" = R2, 
-         "n" = n, 
-         "MAE (Wm^{-2})" = MAE, 
-         "Bias (Wm^{-2})" = Bias, 
-         "NSE" = NSE, 
-         "Slope" = Slope, 
-         "Intercept (Wm^{-2})" = intercept)%>%
-  select(-KGE)
+         "u*" = u_star_class, 
+         "R2" = R2, 
+         "Intercept" = intercept)%>%
+  select(-KGE, -std_error)
 
 print(u_star_results, n = 50)
 
@@ -230,19 +242,108 @@ writeLines(
   "C:/Users/Lenovo/Downloads/u_star_table.tex"
 )
 
+################################################
+###### u* compare with Billesbach values
+################################################
+
+df_billesbach <- data.frame(
+  `ustar` = as.factor(c('0-0.2', "0.2-0.4", "0.4-0.6", ">0.6")),
+  
+  BREB_H_Slope  = c(1.413, 1.136, 1.030, 0.914),
+  BREB_H_R2     = c(0.928, 0.866, 0.817, 0.753),
+  
+  BREB_LE_Slope = c(0.935, 1.063, 1.025, 0.982),
+  BREB_LE_R2    = c(0.878, 0.921, 0.873, 0.857),
+  
+  MBR_LE_Slope  = c(0.735, 0.780, 0.937, 1.039),
+  MBR_LE_R2     = c(0.811, 0.713, 0.610, 0.598)
+) %>%
+  pivot_longer(
+    -ustar,
+    names_to = c("Flux", ".value"),
+    names_pattern = "(.*)_(Slope|R2)"
+  )%>%
+  mutate(
+    Flux = str_replace(Flux, pattern = "_", " ")
+  )%>%
+  rename(`u*` = ustar)%>%
+  mutate(`u*` = factor(`u*`, levels = c('0-0.2', '0.2-0.4', '0.4-0.6', '>0.6')))%>% # make order correct
+  mutate(study = "Billesbach et al. 2024")
+df_billesbach
+
+### bring own u* results in dataframe form for plotting
+u_star_combine = u_star_results%>%
+  select(-c(Intercept, n, Bias, MAE, NSE))%>%
+  mutate(`u*` = factor(`u*`, levels = c('0-0.2', '0.2-0.4', '0.4-0.6', '>0.6')))%>% # make order correct
+  mutate(study = "This study")
+
+# combine Mine and Billesbach
+df_comparison = rbind(
+  u_star_combine, df_billesbach
+)%>%
+  #remove EBC and MBR H
+  filter(Flux != "EC EBC" & Flux != "MBR H")%>%
+  pivot_longer(
+    cols = c(Slope, R2),
+    names_to = "Slope/R2",
+    values_to = "value"
+  )
+  
+
+comparison_slope_r2 = ggplot(df_comparison,
+       aes(x = `u*`,
+           y = `value`,
+           colour = Flux,
+           group = interaction(Flux, study))) +
+  geom_line(aes(alpha = study)) +
+  geom_point(aes(alpha = study), size = 3) +
+  scale_alpha_manual(values = c(
+    "This study" = 1,
+    "Billesbach et al. 2024" = 0.3
+  )) +
+  labs(y = "", colour = "Method & flux", alpha = "", x = "u* [m/s]")+
+  facet_wrap(~`Slope/R2`, scales = "free_y")+
+  theme_bw()
+
+comparison_slope_r2
+
+ggsave(
+  filename = "C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/plots/comparison_slope_R2.pdf",
+  plot = comparison_slope_r2,
+  width = 18, height = 8, units = "cm", dpi = 300
+)
+
+# r2
+ggplot(df_billesbach,
+       aes(x = `u*`,
+           y = R2,
+           colour = Flux, group = Flux)) +
+  geom_point(size = 3) +
+  geom_line() +
+  theme_bw()
+
+
 
 #################################################
 ###### overall evaluation metrics 
 #################################################
 
 # overall models
-u_star_overall <- impact_df_long %>%
+overall <- impact_df_long %>%
   group_by(flux_type) %>%
   group_modify(~ get_stats(.x)) %>%
   mutate(u_star_class = "overall")
 
 # u star group is confusing, actually does not matter here
-print(u_star_overall)
+print(overall)
+
+
+################################################
+###### correlation of u* and stability
+################################################
+
+boxplot(u_star ~ stability_class, data = impact_df)
+
 
 
 #################################################
@@ -259,7 +360,7 @@ stab_cols <- c(
 )
 
 # stability order
-stab_order <- c("unstable", "neutral", "stable")
+stab_order <- c("stable", "neutral", "unstable")
 
 # loop through flux types
 for(ft in unique(impact_df_long$flux_type)){
@@ -273,7 +374,7 @@ for(ft in unique(impact_df_long$flux_type)){
   )
   
   # open plotting window
-  windows()
+  #windows()
   
   # panel layout
   par(
@@ -383,7 +484,7 @@ for(ft in unique(impact_df_long$flux_type)){
       is.finite(flux_value)
   )
   
-  windows()
+  #windows()
   
   par(
     mfrow = c(2,2),
