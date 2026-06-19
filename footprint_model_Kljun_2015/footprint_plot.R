@@ -7,6 +7,7 @@ library(ggplot2)
 library(basemaps)
 library(stars)
 library(ggspatial)
+library(grid)
 
 
 # load calculated footprint
@@ -128,7 +129,18 @@ squared_bbox = function(polygon, padding = 50){
 # crop to extent of footprint, 50m padding
 land_cover  = st_crop(land_cover, squared_bbox(footprint))
 
-# tower location: ref_utm (this is not utm anymore)
+# recode and rename the classes
+land_cover[[1]] <- recode(
+  land_cover[[1]],
+  "Low-growing woody plants" = "Other",
+  "Non and sparsely vegetated" = "Other",
+  
+  "Permanent herbaceous" = "Grassland", 
+  "Periodically herbaceous" = "Cropland",
+  
+  "Woody needle leaved trees" = "Coniferous forest",
+  "Woody broadleaved deciduous trees" = "Deciduous forest"
+)
 
 # downsample for faster plotting
 if(height == "148" & stability == "stable"){
@@ -143,18 +155,22 @@ landcover_colors <- c(
   "No data" = "#000000",
   "Snow and ice" = "#B3D9FF",
   "Water" = "blue",
-  "Non and sparsely vegetated" = "#7A7A7A",
+  #"Non and sparsely vegetated" = "#7A7A7A",
   "Lichens and mosses" = "#F0E442",
   # Herbaceous / agriculture
-  "Periodically herbaceous" = "#FEE08B",
-  "Permanent herbaceous" = "wheat3",
+  #"Periodically herbaceous" = "#FEE08B",
+  "Cropland" = "#FEE08B", 
+  "Grassland" = "wheat3",
+  #"Permanent herbaceous" = "wheat3",
   # Shrubs / low woody
-  "Low-growing woody plants" = "#A6D96A",
+  #"Low-growing woody plants" = "#A6D96A",
+  "Other" = "#7A7A7A",
   # forests
-  "Woody broadleaved deciduous trees" = "#3FA34D",  
-  "Woody needle leaved trees" = "#1F5F5B",
-  "Sealed" = "#D7191C"
+  "Deciduous forest" = "#3FA34D",  
+  "Coniferous forest" = "#1F5F5B",
+  "Sealed" = "black"
 )
+
 
 # make categories
 footprint <- footprint %>%
@@ -162,46 +178,90 @@ footprint <- footprint %>%
                                 percentile == 2 ~ "50%",
                                 percentile == 3 ~ "75%"))
 
-# plt in ggplot
-plot_test = ggplot()+
-  geom_stars(data = land_cover)+
-  geom_sf(data = footprint, aes(linetype = percentage), fill = NA, size = 1.5, color = "black")+
-  geom_sf(data = ref_utm, aes(color = "Tower ICOS Se-Htm"), size = 3) +
+plot_test <- ggplot() +
+  
+  # land cover raster
+  geom_stars(data = land_cover, alpha = 0.7) +
+  scale_fill_manual(
+    values = landcover_colors,
+    name = "Land cover class"
+  ) +
+  
+  # footprint polygons
+  geom_sf(
+    data = footprint,
+    aes(color = percentage),
+    fill = NA,
+    linewidth = 1
+  ) +
+  
   scale_color_manual(
-    name = NULL,
-    values = c("Tower ICOS Se-Htm" = "red")
+    name = "Contribution",
+    values = c(
+      "25%" = "#F0E442",
+      "50%" = "#D55E00",
+      "75%" = "#6A3D9A",
+      "Tower ICOS Se-Htm" = "black"
+    )
+  ) +
+  
+  # tower location
+  geom_sf(
+    data = ref_utm,
+    aes(color = "Tower ICOS Se-Htm"),
+    size = 3
+  ) +
+  
+  coord_sf(expand = FALSE) +
+  
+  labs(
+    x = "",
+    y = ""
+  ) +
+  
+  #annotation_north_arrow(
+  #  location = "tr",
+  #  which_north = "true",
+  #  style = north_arrow_fancy_orienteering(),
+  #  height = unit(0.5, "cm"),
+  #  width = unit(0.5, "cm")
+  #) +
+  
+  # rectangle for the scale
+  annotation_custom(
+    grob = rectGrob(
+      x = unit(0.86, "npc"),
+      y = unit(0.95, "npc"),
+      width = unit(0.30, "npc"),
+      height = unit(0.08, "npc"),
+      just = c("center", "center"),
+      gp = gpar(
+        fill = scales::alpha("white", 0.4),
+        col = NA
+      )
+    )
   )+
-  scale_fill_manual(values = landcover_colors) +
-  coord_sf(expand = FALSE)+
-  labs(x = "", y = "", fill = "Land cover class")+
-  annotation_north_arrow(
-    location = "tr",  # top right
-    which_north = "true",
-    style = north_arrow_fancy_orienteering()
-  ) +
   annotation_scale(
-    location = "tr",  # top right
-    width_hint = 0.3, text_cex = 1.4
+    location = "tr",
+    width_hint = 0.15,
+    text_cex = 1, 
+    bar_cols = c("black", "white")
   ) +
-  # set explicitly only 5 breaks
   scale_x_continuous(
     breaks = scales::pretty_breaks(n = 3)
   ) +
   scale_y_continuous(
     breaks = scales::pretty_breaks(n = 3)
-  )+
-  # change the line type
-  scale_linetype_manual(
-    values = c(
-      "25%" = "solid",
-      "50%" = "longdash",
-      "75%" = "3313"), name = "Contribution") +
-  theme_bw()+
+  ) +
+  theme_bw() +
   theme(
     axis.text.y = element_text(
       angle = 90,
       hjust = 0.5,
-      vjust = 0.5), legend.position = "right")
+      vjust = 0.5
+    ),
+    legend.position = "right"
+  )
 
 
 
@@ -210,10 +270,96 @@ library(cowplot)
 legend_only = get_legend(plot_test)
 
 
+
+
 ##### do this for all heights #####
 heights <- c("30", "70", "148")
 stabilities <- c("unstable", "neutral", "stable")
 land_cover= read_stars("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/footprint_model_Kljun_2015/basemap_CLCplus_Backbone_2023/CLMS_CLCPLUS_RAS_S2023_R10m_E45N36_03035_V01_R00.tif", proxy = F)
+
+# recode and rename land cover classes to rather land use classes
+# recode and rename the classes
+land_cover[[1]] <- recode(
+  land_cover[[1]],
+  "Low-growing woody plants" = "Other",
+  "Non and sparsely vegetated" = "Other",
+  
+  "Permanent herbaceous" = "Grassland", 
+  "Periodically herbaceous" = "Cropland",
+  
+  "Woody needle leaved trees" = "Coniferous forest",
+  "Woody broadleaved deciduous trees" = "Deciduous forest"
+)
+
+# location of scale and the rectangle
+scale_positions <- data.frame(
+  height = rep(c("30", "70", "148"), each = 3),
+  stability = rep(c("unstable", "neutral", "stable"), times = 3),
+  location = c(
+    "tl", "tl", "tl",   # 30
+    "br", "br", "br",   # 70
+    "tl", "tl", "tl"    # 148
+  ),
+  stringsAsFactors = FALSE
+)
+
+#define a function to get the location of the scale inside the ggplot 
+get_scale_location <- function(h, s) {
+  scale_positions |>
+    dplyr::filter(height == h, stability == s) |>
+    dplyr::pull(location)
+}
+
+# also a table with the position of the rectangles:
+rect_positions <- data.frame(
+  height = rep(c("30", "70", "148"), each = 3),
+  stability = rep(c("unstable", "neutral", "stable"), times = 3),
+  
+  location = c(
+    "tl", "tl", "tl",
+    "br", "br", "br",
+    "tl", "tl", "tl"
+  ),
+  
+  x = c(
+    0, 0, 0,   # tl → anchor at left
+    1, 1, 1,   # br → anchor at right
+    0, 0, 0
+  ),
+  
+  y = c(
+    1, 1, 1,   # tl → top
+    0, 0, 0,   # br → bottom
+    1, 1, 1
+  ),
+  
+  just_h = c(
+    "left", "left", "left",
+    "right", "right", "right",
+    "left", "left", "left"
+  ),
+  
+  just_v = c(
+    "top", "top", "top",
+    "bottom", "bottom", "bottom",
+    "top", "top", "top"
+  ),
+  
+  width = c(
+    0.46, 0.51, 0.53,
+    0.51, 0.51, 0.39,
+    0.38, 0.44, 0.45
+  ),
+  
+  height_rect = 0.14,
+  stringsAsFactors = FALSE
+)
+
+#helper fun to retrieve the data from table
+get_rect_params <- function(h, s) {
+  rect_positions |>
+    dplyr::filter(height == h, stability == s)
+}
 
 
 plots <- list()
@@ -243,9 +389,7 @@ for (h in heights) {
         )
       }),
       3035
-    )
-    
-    footprint <- footprint %>%
+    ) %>%
       mutate(percentage = case_when(
         percentile == 1 ~ "25%",
         percentile == 2 ~ "50%",
@@ -254,43 +398,106 @@ for (h in heights) {
     
     land_cover_crop <- st_crop(land_cover, squared_bbox(footprint))
     
-    # downsample for faster plotting
-    if(h == "148" & s == "stable"){
-      land_cover = st_downsample(land_cover_crop, n = 3)
+    # IMPORTANT: do not overwrite global land_cover
+    land_cover_local <- land_cover_crop
+    
+    # optional downsampling
+    if (h == "148" & s == "stable") {
+      land_cover_local <- st_downsample(land_cover_local, n = 3)
     }
     
+    rp <- get_rect_params(h, s)
+    print(rp)
+    
     p <- ggplot() +
-      geom_stars(data = land_cover_crop) +
-      geom_sf(data = footprint,
-              aes(linetype = percentage),
-              fill = NA, size = 1.1, color = "black") +
-      geom_sf(data = ref_utm,
-              aes(color = "Tower ICOS Se-Htm"),
-              size = 3) +
-      scale_color_manual(values = c("Tower ICOS Se-Htm" = "red")) +
-      # set explicitly only 5 breaks
-      scale_x_continuous(
-        breaks = scales::pretty_breaks(n = 3)) +
-      scale_y_continuous(
-        breaks = scales::pretty_breaks(n = 3))+
-      scale_fill_manual(values = landcover_colors) +
-      scale_linetype_manual(values = c(
-        "25%" = "solid",
-        "50%" = "longdash",
-        "75%" = "3313"
-      )) +
+      
+      # -----------------------
+    # BACKGROUND (land cover)
+    # -----------------------
+    geom_stars(data = land_cover_local, alpha = 0.7) +
+      scale_fill_manual(
+        values = landcover_colors,
+        name = "Land cover class"
+      ) +
+      
+      # -----------------------
+    # FOOTPRINT LINES
+    # -----------------------
+    geom_sf(
+      data = footprint,
+      aes(color = percentage),
+      fill = NA,
+      linewidth = 1
+    ) +
+      
+      scale_color_manual(
+        values = c(
+          "25%" = "#F0E442",
+          "50%" = "#D55E00",
+          "75%" = "#6A3D9A",
+          "Tower ICOS Se-Htm" = "black"
+        ),
+        name = "Contribution"
+      ) +
+      
+      # -----------------------
+    # TOWER
+    # -----------------------
+    geom_sf(
+      data = ref_utm,
+      aes(color = "Tower ICOS Se-Htm"),
+      size = 3
+    )  +
+      
+      # -----------------------
+    # WHITE BACKGROUND BOX (UI AREA)
+    # -----------------------
+    annotation_custom(
+      grob = rectGrob(
+        x = unit(rp$x, "npc"),
+        y = unit(rp$y, "npc"),
+        width = unit(rp$width, "npc"),
+        height = unit(rp$height_rect, "npc"),
+        just = c(rp$just_h, rp$just_v),
+        gp = gpar(
+          fill = scales::alpha("white", 0.5),
+          col = NA
+        )
+      )
+    ) +
+      
+      # -----------------------
+    # MAP ELEMENTS
+    # -----------------------
+    annotation_scale(
+      location = get_scale_location(h, s),
+      width_hint = 0.2,
+      text_cex = 1.0
+    ) +
+      
       coord_sf(expand = FALSE) +
-      labs(title = paste0(h,"m, ", s),
-           x = "", y = "") +
-      theme_bw()+
+      
+      scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
+      scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) +
+      
+      labs(
+        title = paste0(h, " m, ", s)
+      ) +
+      
+      theme_bw() +
       theme(
         axis.text.y = element_text(
           angle = 90,
           hjust = 0.5,
-          vjust = 0.5), 
-        axis.text = element_text(size = 8)) +
-      theme(legend.position = "none", 
-            plot.title = element_text(hjust = 0.5))
+          vjust = 0.5
+        ),
+        axis.text = element_text(size = 8),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, 
+           margin = margin(t = 2, b = 1)), 
+        plot.margin = margin(0, 0, 0, 0.3), 
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank())
     
     plots[[h]][[s]] <- p
   }
@@ -306,26 +513,57 @@ final_plot <- (
   (plots[["30"]][["unstable"]] |
      plots[["30"]][["neutral"]] |
      plots[["30"]][["stable"]]) /
-    
     (plots[["70"]][["unstable"]] |
        plots[["70"]][["neutral"]] |
        plots[["70"]][["stable"]]) /
-    
     (plots[["148"]][["unstable"]] |
        plots[["148"]][["neutral"]] |
        plots[["148"]][["stable"]])
-)
+) +
+  plot_layout(
+    widths = c(1, 1, 1),
+    heights = c(1, 1, 1),
+    guides = "collect"
+  ) &
+  theme(
+    plot.margin = margin(0, 0, 0, 0.3)
+  )
+
+final_plot
 
 # save as pdf
 ggsave(
   filename = "./Footprint_model_Kljun_2015/footprint_height_stability_all.pdf",
   plot = final_plot,
-  width = 20,
-  height = 20,
+  width = 17,
+  height = 17,
   units = "cm",
   dpi = 300,
   device = cairo_pdf
 )
 
-# add legend
-final_plot 
+# save legend to pdf
+ggsave(
+  filename = "./Footprint_model_Kljun_2015/footprint_height_stability_all_legend.pdf",
+  plot = legend_only, 
+  width = 6,
+  height = 20,
+  units = "cm",
+  dpi = 300)
+
+### add legend on pdf
+library(magick)
+
+# read PDFs
+pdf1 <- image_read_pdf("./Footprint_model_Kljun_2015/footprint_height_stability_all.pdf", density = 300)
+pdf2 <- image_read_pdf("./Footprint_model_Kljun_2015/footprint_height_stability_all_legend.pdf", density = 300)
+
+# combine side by side
+combined <- image_append(c(pdf1[1], pdf2[1]))
+
+# save
+image_write(combined, "./Footprint_model_Kljun_2015/footprint_height_stability_with_legend.pdf", format = "pdf")
+
+
+################################### test area ####################################
+
