@@ -130,13 +130,16 @@ squared_bbox = function(polygon, padding = 50){
 land_cover  = st_crop(land_cover, squared_bbox(footprint))
 
 # recode and rename the classes
+# recode and rename land cover classes to rather land use classes
+land_cover[[1]] <- as.character(land_cover[[1]])
+
 land_cover[[1]] <- recode(
   land_cover[[1]],
   "Low-growing woody plants" = "Other",
   "Non and sparsely vegetated" = "Other",
   
-  "Permanent herbaceous" = "Grassland", 
-  "Periodically herbaceous" = "Cropland",
+  "Permanent herbaceous" = "Herbaceous",
+  "Periodically herbaceous" = "Herbaceous",
   
   "Woody needle leaved trees" = "Coniferous forest",
   "Woody broadleaved deciduous trees" = "Deciduous forest"
@@ -159,8 +162,8 @@ landcover_colors <- c(
   "Lichens and mosses" = "#F0E442",
   # Herbaceous / agriculture
   #"Periodically herbaceous" = "#FEE08B",
-  "Cropland" = "#FEE08B", 
-  "Grassland" = "wheat3",
+  "Herbaceous" = "wheat", 
+  #"Grassland" = "wheat3",
   #"Permanent herbaceous" = "wheat3",
   # Shrubs / low woody
   #"Low-growing woody plants" = "#A6D96A",
@@ -278,18 +281,21 @@ stabilities <- c("unstable", "neutral", "stable")
 land_cover= read_stars("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/footprint_model_Kljun_2015/basemap_CLCplus_Backbone_2023/CLMS_CLCPLUS_RAS_S2023_R10m_E45N36_03035_V01_R00.tif", proxy = F)
 
 # recode and rename land cover classes to rather land use classes
-# recode and rename the classes
+land_cover[[1]] <- as.character(land_cover[[1]])
+
 land_cover[[1]] <- recode(
   land_cover[[1]],
   "Low-growing woody plants" = "Other",
   "Non and sparsely vegetated" = "Other",
   
-  "Permanent herbaceous" = "Grassland", 
-  "Periodically herbaceous" = "Cropland",
+  "Permanent herbaceous" = "Herbaceous",
+  "Periodically herbaceous" = "Herbaceous",
   
   "Woody needle leaved trees" = "Coniferous forest",
   "Woody broadleaved deciduous trees" = "Deciduous forest"
 )
+
+land_cover[[1]] <- as.character(land_cover[[1]])
 
 # location of scale and the rectangle
 scale_positions <- data.frame(

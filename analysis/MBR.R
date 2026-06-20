@@ -132,18 +132,38 @@ H_MBR = slow_profile_data %>%
     size = 4
   ) +
   ylab(expression("H MBR system ["*W~m^{-2}*"]")) +
-  xlab(expression("LE EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
+  xlab(expression("H EC Ecosystem station ["*W~m^{-2}*"]")) +
   coord_cartesian(xlim = c(-300, 850), ylim = c(-300, 850))+
   theme_bw()
 
 H_MBR
 
+# check quickly some ideal days in June:
+#p = slow_profile_data %>%
+#  filter(
+#    datetime >= as.POSIXct("2021-06-01") &
+#      datetime <  as.POSIXct("2021-06-30"))%>%
+#  ggplot(aes(x = datetime)) +
+  #geom_line(aes(y = R_Net_Wm2), size = 1, alpha = 1, color = "orange")+
+#  geom_line(aes(y = LE_Wm2_MBR), size = 1, alpha = 1, color = "darkgreen")+
+#  geom_line(aes(y = LE_Wm2_Eco), size = 1, alpha = 1, color = "black")+
+#  theme_bw()
+
+#library(plotly)
+
+#ggplotly(p)
+  
+  
+
 # plot LE from MBR
 LE_MBR = slow_profile_data %>%
+  #filter(
+   # datetime >= as.POSIXct("2021-06-01") &
+   #   datetime <  as.POSIXct("2021-06-20"))%>%
   ggplot(aes(x = LE_Wm2_Eco, y = LE_Wm2_MBR)) +
   geom_point(size = 0.6, alpha = 0.6) +
   geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1) +
-  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  geom_smooth(method = "lm", color = "blue", se = TRUE) +
   # Add equation and R2
   stat_poly_eq(
     aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
@@ -152,7 +172,7 @@ LE_MBR = slow_profile_data %>%
     size = 4
   ) +
   ylab(expression("LE MBR system ["*W~m^{-2}*"]")) +
-  xlab(expression("LE EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
+  xlab(expression("LE EC Ecosystem station ["*W~m^{-2}*"]")) +
   coord_cartesian(xlim = c(-200, 600), ylim = c(-200, 600))+
   theme_bw()
 
@@ -192,7 +212,7 @@ LE_2021= slow_profile_data %>%
   )
 
 # mean daily course of LE
-LE_2021_mean = MBR_data%>%
+LE_2021_mean = slow_profile_data%>%
   group_by(hour(datetime))%>%
   # calculate mean daily values and percentiles
   mutate(mean_daily_LE_Wm2_MBR = mean(LE_Wm2_MBR, na.rm = T), 
@@ -212,7 +232,7 @@ LE_2021_mean = MBR_data%>%
   geom_ribbon(aes(ymin=lower_mean_daily_LE_Wm2_Eco, 
                   ymax=upper_mean_daily_LE_Wm2_Eco), alpha=0.2, fill = "darkgrey", 
               color = "darkgrey", linetype = "dotted")+
-  labs(y = expression("LE ["*W~m^{-2}*"]"), x = "Hour of the day")+
+  labs(y = expression("LE MBR ["*W~m^{-2}*"]"), x = "Hour of the day")+
   theme_bw()
 
 # do the prediction for H MBR
@@ -259,7 +279,7 @@ H_2021_mean = slow_profile_data%>%
   geom_ribbon(aes(ymin=lower_mean_daily_H_Wm2_Eco, 
                   ymax=upper_mean_daily_H_Wm2_Eco), alpha=0.2, fill = "darkgrey", 
               color = "darkgrey", linetype = "dotted")+
-  labs(y = expression("H ["*W~m^{-2}*"]"), x = "Hour of the day")+
+  labs(y = expression("H MBR ["*W~m^{-2}*"]"), x = "Hour of the day")+
   theme_bw()
 
 
@@ -311,6 +331,37 @@ remain_summary <- slow_profile_data %>%
 
 remain_summary
 
+#### prepare for saving:
+MBR_data = slow_profile_data%>%
+  select(datetime, 
+         LE_Wm2_Eco, 
+         H_Wm2_Eco,
+         LE_Wm2_MBR, 
+         H_EC_measured_sonic_30m, 
+         u_star)
+
 # save
 save(x = MBR_data, file = "data/processed/fluxes_MBR.RData")
+
+#### combine the scatter plots and the mean diurnal course plots ####
+scatter_mean_combo_MBR = (H_MBR + LE_MBR) / (H_2021_mean + LE_2021_mean)
+
+save(scatter_mean_combo_MBR, file = "./plots/MBR_scatter_mean_combo.RData")
+
+# load the BREB one 
+load("./plots/MBR_scatter_mean_combo.RData")
+
+# put them together
+combined_plot = ((scatter_mean_combo_BREB) |(scatter_mean_combo_MBR )) + plot_annotation(tag_levels = "a")
+
+#save
+
+ggsave(
+  filename = "./plots/scatter_diurnal_course_plot_all.pdf",
+  plot = combined_plot,
+  width = 31, height = 15.5, units = "cm",
+  dpi = 300
+)
+
+
   

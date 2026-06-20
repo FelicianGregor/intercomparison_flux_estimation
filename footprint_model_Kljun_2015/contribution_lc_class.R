@@ -72,7 +72,20 @@ load("footprint_model_Kljun_2015/FFP_CRS_3035_stars_all.RData")
 
 land_cover <- read_stars(
   "C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/footprint_model_Kljun_2015/basemap_CLCplus_Backbone_2023/CLMS_CLCPLUS_RAS_S2023_R10m_E45N36_03035_V01_R00.tif",
-  proxy = TRUE
+  proxy = F
+)
+
+# recode and rename land cover classes to rather land use classes
+land_cover[[1]] <- recode(
+  land_cover[[1]],
+  "Low-growing woody plants" = "Other",
+  "Non and sparsely vegetated" = "Other",
+  
+  "Permanent herbaceous" = "Herbaceous", 
+  "Periodically herbaceous" = "Herbaceous",
+  
+  "Woody needle leaved trees" = "Coniferous forest",
+  "Woody broadleaved deciduous trees" = "Deciduous forest"
 )
 
 heights <- c("30", "70", "148")
@@ -130,6 +143,7 @@ for (height in heights) {
     # quickly rename 
     names(lc_vectorized)[1] <- "class"
     
+
     ################################################
     #use exactextractr to calculate the contribution
     ################################################
@@ -179,17 +193,39 @@ library(ggplot2)
 df_plot <- df_all %>%
   mutate(
     footprint = factor(
-      paste(height, stability, sep = "\n"),
+      paste0(height, " m\n", stability),
       levels = c(
-        "30\nunstable", "30\nneutral", "30\nstable",
-        "70\nunstable", "70\nneutral", "70\nstable",
-        "148\nunstable", "148\nneutral", "148\nstable"
+        "30 m\nunstable", "30 m\nneutral", "30 m\nstable",
+        "70 m\nunstable", "70 m\nneutral", "70 m\nstable",
+        "148 m\nunstable", "148 m\nneutral", "148 m\nstable"
       )
     )
-  )%>%
+  ) %>%
   mutate(fp_contribution = fp_contribution * 100)
+# set colors as in footprint
 
-ggplot(
+# define color scheme
+landcover_colors <- c(
+  "No data" = "#000000",
+  "Snow and ice" = "#B3D9FF",
+  "Water" = "blue",
+  #"Non and sparsely vegetated" = "#7A7A7A",
+  "Lichens and mosses" = "#F0E442",
+  # Herbaceous / agriculture
+  #"Periodically herbaceous" = "#FEE08B",
+  "Herbaceous" = "wheat", 
+  #"Grassland" = "wheat3",
+  #"Permanent herbaceous" = "wheat3",
+  # Shrubs / low woody
+  #"Low-growing woody plants" = "#A6D96A",
+  "Other" = "#7A7A7A",
+  # forests
+  "Deciduous forest" = "#3FA34D",  
+  "Coniferous forest" = "#1F5F5B",
+  "Sealed" = "black"
+)
+
+p <- ggplot(
   df_plot,
   aes(
     x = footprint,
@@ -198,12 +234,22 @@ ggplot(
   )
 ) +
   geom_col() +
+  scale_fill_manual(values = landcover_colors) +
   labs(
     x = "",
     y = "Weighted contribution [%]",
-    fill = ""
+    fill = "Land cover class"
   ) +
   theme_bw() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
+
+p
+
+ggsave(
+  filename = "plots/fp_contribution_land_cover.pdf",
+  plot = p,
+  width = 15, height = 10, units = "cm",
+  dpi = 300
+)

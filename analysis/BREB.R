@@ -79,6 +79,18 @@ BREB = function(H2O_mmol_mol_up,
   yes = NA,
   no = H_Wm2_BREB)
   
+  # calculate threshold for BREB as done for MBR
+  # calculate e in hPa first
+  e_hPa_up = (P_ground_hPa * H2O_kg_kg_up) / 0.622 
+  e_hPa_down  = (P_ground_hPa * H2O_kg_kg_down) / 0.622
+  delta_e_hPa = e_hPa_up-e_hPa_down
+  #filter for minimal e difference
+  LE_Wm2_BREB = ifelse(abs(delta_e_hPa) < 0.1, yes = NA, no = LE_Wm2_BREB)
+  
+  # filter Ta difference by minimal difference
+  threshold = 0.15 # in K
+  LE_Wm2_BREB = ifelse(abs(delta_Ta_dgC) < threshold, yes = NA, no = LE_Wm2_BREB)
+  
   # return sensible heat as default
   if (type == "latent") {
     return(LE_Wm2_BREB)
@@ -91,6 +103,7 @@ BREB = function(H2O_mmol_mol_up,
 library(tidyverse)
 library(ggpmisc)
 library(lubridate)
+library(patchwork)
 
 # load data
 load("C:/Users/Lenovo/Documents/Physical_Geography/master_thesis/scripts_master_thesis/data/processed/sonic_profile_data.RData") # EC data output from different heights
@@ -160,7 +173,7 @@ H_BREB = BREB_data %>%
     size = 4
   ) +
   ylab(expression("H BREB system ["*W~m^{-2}*"]")) +
-  xlab(expression("LE EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
+  xlab(expression("H EC Ecosystem station ["*W~m^{-2}*"]")) +
   coord_cartesian(xlim = c(-300, 850), ylim = c(-300, 850))+
   theme_bw()
 
@@ -171,7 +184,7 @@ LE_BREB = BREB_data %>%
   ggplot(aes(x = LE_Wm2_Eco, y = LE_Wm2_BREB)) +
   geom_point(size = 0.6, alpha = 0.6) +
   geom_abline(intercept = 0, slope = 1, color = "black", linewidth = 1) +
-  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  geom_smooth(method = "lm", color = "blue", se = TRUE) +
   # Add equation and R2
   stat_poly_eq(
     aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
@@ -180,7 +193,7 @@ LE_BREB = BREB_data %>%
     size = 4
   ) +
   ylab(expression("LE BREB system ["*W~m^{-2}*"]")) +
-  xlab(expression("LE EC ICOS Ecosystem station ["*W~m^{-2}*"]")) +
+  xlab(expression("LE EC Ecosystem station ["*W~m^{-2}*"]")) +
   coord_cartesian(xlim = c(-200, 600), ylim = c(-200, 600))+
   theme_bw()
 
@@ -240,7 +253,7 @@ LE_2021_mean = BREB_data%>%
   geom_ribbon(aes(ymin=lower_mean_daily_LE_Wm2_Eco, 
                   ymax=upper_mean_daily_LE_Wm2_Eco), alpha=0.2, fill = "darkgrey", 
               color = "darkgrey", linetype = "dotted")+
-  labs(y = expression("LE ["*W~m^{-2}*"]"), x = "Hour of the day")+
+  labs(y = expression("LE BREB ["*W~m^{-2}*"]"), x = "Hour of the day")+
   theme_bw()
 
 # do the prediction for H BREB
@@ -287,7 +300,7 @@ H_2021_mean = BREB_data%>%
   geom_ribbon(aes(ymin=lower_mean_daily_H_Wm2_Eco, 
                   ymax=upper_mean_daily_H_Wm2_Eco), alpha=0.2, fill = "darkgrey", 
               color = "darkgrey", linetype = "dotted")+
-  labs(y = expression("H ["*W~m^{-2}*"]"), x = "Hour of the day")+
+  labs(y = expression("H BREB ["*W~m^{-2}*"]"), x = "Hour of the day")+
   theme_bw()
 
 
@@ -353,3 +366,33 @@ BREB = BREB_data%>%
 # save
 save(x = BREB, file = "data/processed/fluxes_BREB.RData")
 
+#### combine the scatter plots and the mean diurnal course plots ####
+scatter_mean_combo_BREB = (H_BREB + LE_BREB) / (H_2021_mean + LE_2021_mean)
+
+save(scatter_mean_combo_BREB, file = "./plots/BREB_scatter_mean_combo.RData")
+
+# load the MBR one
+load("./plots/MBR_scatter_mean_combo.RData")
+
+# put next to each other
+combined_plot = ((scatter_mean_combo_BREB) |(scatter_mean_combo_MBR )) + plot_annotation(tag_levels = "a")
+
+### stacked: 
+# load scatter_mean_combo_MBR and combine
+#combined_plot <- wrap_plots(
+#  scatter_mean_combo_BREB,
+#  scatter_mean_combo_MBR,
+#  ncol = 1
+#) +
+#  plot_layout(heights = c(1, 1)) +
+#  plot_annotation(tag_levels = "a")
+
+
+
+
+ggsave(
+  filename = "./plots/scatter_diurnal_course_plot_all.pdf",
+  plot = combined_plot,
+  width = 31, height = 15.5, units = "cm",
+  dpi = 300
+)
